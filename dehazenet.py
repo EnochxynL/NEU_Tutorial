@@ -258,6 +258,102 @@ class DehazeNetTester:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+
+class FogData(Dataset):
+	IMAGE_AUGUMENTATION = torchvision.transforms.Compose([
+		transforms.RandomHorizontalFlip(0.5),
+		transforms.RandomVerticalFlip(0.5),
+		transforms.RandomRotation(30),
+		transforms.ToTensor(),
+		transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+	])
+
+	# root：图像存放地址根路径
+	# augment：是否需要图像增强
+	def __init__(self, root, labels, augment=True):
+		# 初始化 可以定义图片地址 标签 是否变换 变换函数
+		self.image_files = root
+		self.labels = torch.cuda.FloatTensor(labels)
+		self.augment = augment   # 是否需要图像增强
+		# self.transform = transform
+
+	def __getitem__(self, index):
+		# 读取图像数据并返回
+		if self.augment:
+			img = Image.open(self.image_files[index])
+			img = self.IMAGE_AUGUMENTATION(img)
+			img = img.cuda()
+			return img, self.labels[index]
+		else:
+			img = Image.open(self.image_files[index])
+			img = self.IMAGE_LOADER(img)
+			img = img.cuda()
+			return img, self.labels[index]
+
+	def __len__(self):
+		# 返回图像的数量
+		return len(self.image_files)
+
+
+class DehazeNetTrainer():
+
+	EPOCH = 10
+
+	def setup(self, loader):
+		self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.0000005)
+		self.loader = loader
+		self.loss_func = nn.MSELoss().cuda()
+		self.epoch = 0
+		return self
+
+	def loop(self):
+		total_loss = 0
+		for i, (x, y) in enumerate(self.loader):
+			# 输入训练数据
+			# 清空上一次梯度
+			self.optimizer.zero_grad()
+			output = self.net(x)
+			# 计算误差
+			loss = self.loss_func(output, y)
+			total_loss += loss
+			# 误差反向传递
+			loss.backward()
+			# 优化器参数更新
+			self.optimizer.step()
+			if i % 10 == 5:
+				print('Epoch', self.epoch, '|step ', i, 'loss: %.4f' % loss.item(), )
+		print('Epoch', self.epoch, 'total_loss', total_loss.item())
+		self.epoch += 1
+		return self
+
+	#@torchsnooper.snoop()
+	@classmethod
+	def main(cls):
+		path_train = []
+		file = open('path_train.txt', mode='r')
+		content = file.readlines()
+		for i in range(len(content)):
+			path_train.append(content[i][:-1])
+
+		label_train = []
+		file = open('label_train.txt', mode='r')
+		content = file.readlines()
+		for i in range(len(content)):
+			label_train.append(float(content[i][:-1]))
+			#print(float(content[i][:-1]))
+
+		BATCH_SIZE = 128
+
+		train_data = FogData(path_train, label_train, False)
+		train_loader = data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, )
+		trainer = DehazeNetTrainer(DehazeNet()).open(r'defog4_noaug.pth').setup(train_loader)
+		for epoch in range(trainer.EPOCH):
+			trainer.loop()
+		trainer.save(r'defog4_noaug.pth')
+
+
+
+
 import typer
 if __name__ == "__main__":
     typer.run(DehazeNetTester.main)
