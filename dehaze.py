@@ -154,7 +154,7 @@ class Main:
             forward_debug = dehaze.debug
         del dehaze
 
-        cv2.imwrite(f"{name}.dcp.jpg", (dehazed_img * 255).astype(np.uint8))
+        # cv2.imwrite(f"{name}.dcp.jpg", (dehazed_img * 255).astype(np.uint8))
         cv2.imshow("Dehazing Process", cls.stack_images(forward_debug, cols=2))
 
         cv2.waitKey(0)

@@ -162,7 +162,7 @@ class Main:
         return np.vstack(h_imgs)
     
     @classmethod
-    def main(cls, name: str="Dowels.tif"):
+    def main(cls, name: str="count_1.png"):
         image = cv2.imread(name)
 
         count = Count()

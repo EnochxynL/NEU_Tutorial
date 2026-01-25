@@ -20,21 +20,35 @@ class BRelu(nn.Module):
 
 
 class DehazeNet(nn.Module):
+
+    @staticmethod
+    def Maxout(x, groups):
+        """与原始代码完全相同的Maxout实现"""
+        batch_size, channels, height, width = x.shape
+        
+        x = x.reshape(batch_size, groups, channels // groups, height, width)
+        x, _ = torch.max(x, dim=2, keepdim=True)
+        out = x.reshape(batch_size, groups, height, width)
+        
+        return out
+
     def __init__(self, input_channels=16, groups=4):
+        '''注意：原始论文的MATLAB代码卷积使用SAME卷积，对称填充。为节省代码，采用SAME卷积、零填充'''
         super(DehazeNet, self).__init__()
         self.input_channels = input_channels
         self.groups = groups
         
-        # 与原始代码完全相同的层定义
+        # Feature Extraction
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.input_channels, kernel_size=5, padding=0)
+        # Multi-scale Mapping
         self.conv2 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=5, padding=2)
         self.conv4 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=7, padding=3)
+        # Local Extremum
         self.maxpool = nn.MaxPool2d(kernel_size=7, stride=1)
+        # Non-linear Regression
         self.conv5 = nn.Conv2d(in_channels=48, out_channels=1, kernel_size=6)
-        
-        # 使用兼容的BRelu
-        self.brelu = BRelu()
+        self.brelu = BRelu() # 使用兼容的BRelu
         
         self._initialize_weights()
     
@@ -45,22 +59,6 @@ class DehazeNet(nn.Module):
                 nn.init.normal_(m.weight, mean=0, std=0.001)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-    
-    def Maxout(self, x, groups):
-        """与原始代码完全相同的Maxout实现"""
-        batch_size, channels, height, width = x.shape
-        
-        # 原始代码的实现
-        x = x.reshape(batch_size, groups, channels // groups, height, width)
-        x, _ = torch.max(x, dim=2, keepdim=True)
-        
-        # 注意：原始代码中这里的reshape可能有误，但为了兼容性保持相同
-        # 原始代码：out = x.reshape(x.shape[0], -1, x.shape[3], x.shape[4])
-        # 应该为：out = x.reshape(batch_size, groups, height, width)
-        # 但为了兼容性，我们使用原始代码的方式
-        out = x.reshape(batch_size, groups, height, width)
-        
-        return out
     
     def forward(self, x):
         # Feature Extraction
@@ -240,7 +238,7 @@ class DehazeNetTester:
         return np.vstack(h_imgs)
 
     @classmethod
-    def main(cls, open_dir='city.jpg', save_dir='city.jpg.net.jpg', model_path='defog4_noaug.pth'):
+    def main(cls, open_dir='dehaze_1.jpg', save_dir='city.jpg.net.jpg', model_path='defog4_noaug.pth'):
         # 加载图像
         img = Image.open(open_dir).convert('RGB')
         # 初始化模型
@@ -253,7 +251,7 @@ class DehazeNetTester:
         cv2.imshow("Dehazing Process", runner_debug)
         # 保存结果
         result_img = Image.fromarray((result * 255).astype(np.uint8))
-        result_img.save(save_dir)
+        # result_img.save(save_dir)
         print(f"快速去雾图像已保存到 {save_dir}")
         cv2.waitKey(0)
         cv2.destroyAllWindows()
