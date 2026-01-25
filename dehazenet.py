@@ -15,88 +15,17 @@ class BRelu(nn.Module):
         return torch.clamp(x, 0, 1)
 
 
-# class DehazeNet(nn.Module):
-#     def __init__(self):
-#         super(DehazeNet, self).__init__()
-        
-#         # 与原始代码完全对应的网络结构
-#         # Feature Extraction 层 (F1)
-#         self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, padding=2)
-        
-#         # Multi-scale Mapping 层 (F2)
-#         self.conv3x3 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1)
-#         self.conv5x5 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=5, padding=2)
-#         self.conv7x7 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=7, padding=3)
-        
-#         # Local Extremum 层 (F3) - 7x7最大池化
-#         self.maxpool = nn.MaxPool2d(kernel_size=7, stride=1, padding=3)
-        
-#         # Non-linear Regression 层 (F4) - 6x6卷积
-#         self.conv_ip = nn.Conv2d(in_channels=48, out_channels=1, kernel_size=6, padding=0)
-        
-#         self.brelu = BRelu()
-        
-#         self._initialize_weights()
-    
-#     def _initialize_weights(self):
-#         for m in self.modules():
-#             if isinstance(m, nn.Conv2d):
-#                 nn.init.normal_(m.weight, mean=0, std=0.001)
-#                 if m.bias is not None:
-#                     nn.init.constant_(m.bias, 0)
-    
-#     def Maxout(self, x, groups=4):
-#         """与原始代码相同的Maxout实现"""
-#         batch_size, channels, height, width = x.shape
-#         channels_per_group = channels // groups
-        
-#         # 将通道分组
-#         x = x.view(batch_size, groups, channels_per_group, height, width)
-        
-#         # 在每个组内取最大值
-#         x, _ = torch.max(x, dim=2)
-        
-#         return x
-    
-#     def forward(self, x):
-#         # 保存原始尺寸用于后续恢复
-#         orig_h, orig_w = x.shape[2], x.shape[3]
-        
-#         # Feature Extraction F1
-#         f1 = self.conv1(x)
-#         f1 = self.Maxout(f1, groups=4)  # 16通道 -> 4通道
-        
-#         # Multi-scale Mapping F2
-#         f2_3x3 = self.conv3x3(f1)  # 4通道 -> 16通道
-#         f2_5x5 = self.conv5x5(f1)  # 4通道 -> 16通道
-#         f2_7x7 = self.conv7x7(f1)  # 4通道 -> 16通道
-#         f2 = torch.cat([f2_3x3, f2_5x5, f2_7x7], dim=1)  # 48通道
-        
-#         # Local Extremum F3
-#         f3 = self.maxpool(f2)
-        
-#         # Non-linear Regression F4
-#         # 注意：6x6卷积会使尺寸缩小5，我们需要计算输出尺寸
-#         f4 = self.conv_ip(f3)
-#         f4 = self.brelu(f4)  # 输出范围[0,1]
-        
-#         # 使用双线性插值恢复到原始尺寸
-#         f4 = F.interpolate(f4, size=(orig_h, orig_w), mode='bilinear', align_corners=False)
-        
-#         return f4
-
-
 class DehazeNet(nn.Module):
 
     @staticmethod
     def Maxout(x, groups):
         """与原始代码完全相同的Maxout实现"""
         batch_size, channels, height, width = x.shape
-        
+        # 将通道分组
         x = x.reshape(batch_size, groups, channels // groups, height, width)
+        # 在每个组内取最大值
         x, _ = torch.max(x, dim=2, keepdim=True)
         out = x.reshape(batch_size, groups, height, width)
-        
         return out
 
     def __init__(self, input_channels=16, groups=4):
@@ -106,7 +35,7 @@ class DehazeNet(nn.Module):
         self.groups = groups
         
         # Feature Extraction
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.input_channels, kernel_size=5, padding=2)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.input_channels, kernel_size=5, padding=2) # 和 https://github.com/thuBingo/DehazeNet_Pytorch 实现不同，使用SAME卷积
         # Multi-scale Mapping
         self.conv2 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=5, padding=2)
@@ -131,22 +60,22 @@ class DehazeNet(nn.Module):
         # 保存输入尺寸
         orig_size = x.size()[2:]
         # Feature Extraction
-        out = self.conv1(x)
-        out = self.Maxout(out, self.groups)
+        f1 = self.conv1(x)
+        f1 = self.Maxout(f1, self.groups)
         # Multi-scale Mapping
-        out1 = self.conv2(out)
-        out2 = self.conv3(out)
-        out3 = self.conv4(out)
-        y = torch.cat((out1, out2, out3), dim=1)
+        f2_3x3 = self.conv2(f1)
+        f2_5x5 = self.conv3(f1)
+        f2_7x7 = self.conv4(f1)
+        f2 = torch.cat((f2_3x3, f2_5x5, f2_7x7), dim=1)
         # Local Extremum
-        y = self.maxpool(y)
+        f3 = self.maxpool(f2)
         # Non-linear Regression
-        y = self.conv5(y)
-        y = self.brelu(y)
-        # 确保输出与输入相同尺寸
-        y = torch.nn.functional.interpolate(y, size=orig_size, mode='bilinear', align_corners=False)
+        f4 = self.conv5(f3)
+        f4 = self.brelu(f4)
+        # 使用双线性插值恢复到原始尺寸
+        f4 = torch.nn.functional.interpolate(f4, size=orig_size, mode='bilinear', align_corners=False)
         # 返回全分辨率传输图
-        return y
+        return f4
 
 
 class DehazeNetDriver:
@@ -205,9 +134,16 @@ class DehazeNetRunner:
             img_np: 输入图像，值在0-1之间
             driver: 模型驱动
         """
-        # 原始代码的预处理：减去0.5
+        # 论文原始代码的预处理：直接减去0.5
         img_tensor = torch.from_numpy(img_np).permute(2, 0, 1).float()  # HWC -> CHW
         img_tensor = img_tensor - 0.5  # 原始代码的预处理
+
+        # # 转换函数，来自 https://github.com/thuBingo/DehazeNet_Pytorch 原始代码
+        # transform = transforms.Compose([
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # ])
+        # img_tensor = transform(Image.fromarray((img_np * 255).astype(np.uint8)))
         
         # 添加batch维度
         img_tensor = img_tensor.unsqueeze(0).to(driver.device)
@@ -320,7 +256,7 @@ class DehazeNetRunner:
         t_map = self.transmission_map(img_np, driver)
         
         # 转换为灰度图用于引导滤波
-        gray_img = np.dot(img_np[..., :3], [0.299, 0.587, 0.114])
+        gray_img = np.dot(img_np[..., :3], [0.299, 0.587, 0.114]) # RGB到灰度转换的标准权重系数
         
         # 引导滤波（与原始代码一致）
         t_map = self.guided_filter(gray_img, t_map, radius=50, eps=0.001)
@@ -340,6 +276,101 @@ class DehazeNetRunner:
         ]
         
         return result
+
+from torch.utils.data.dataset import Dataset
+
+class FogData(Dataset):
+	IMAGE_AUGUMENTATION = transforms.Compose([
+		transforms.RandomHorizontalFlip(0.5),
+		transforms.RandomVerticalFlip(0.5),
+		transforms.RandomRotation(30),
+		transforms.ToTensor(),
+		transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+	])
+
+	# root：图像存放地址根路径
+	# augment：是否需要图像增强
+	def __init__(self, root, labels, augment=True):
+		# 初始化 可以定义图片地址 标签 是否变换 变换函数
+		self.image_files = root
+		self.labels = torch.cuda.FloatTensor(labels)
+		self.augment = augment   # 是否需要图像增强
+		# self.transform = transform
+
+	def __getitem__(self, index):
+		# 读取图像数据并返回
+		if self.augment:
+			img = Image.open(self.image_files[index])
+			img = self.IMAGE_AUGUMENTATION(img)
+			img = img.cuda()
+			return img, self.labels[index]
+		else:
+			img = Image.open(self.image_files[index])
+			img = self.IMAGE_LOADER(img)
+			img = img.cuda()
+			return img, self.labels[index]
+
+	def __len__(self):
+		# 返回图像的数量
+		return len(self.image_files)
+    
+
+class DehazeNetTrainer():
+
+	EPOCH = 10
+
+	def setup(self, loader):
+		self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.0000005)
+		self.loader = loader
+		self.loss_func = nn.MSELoss().cuda()
+		self.epoch = 0
+		return self
+
+	def loop(self):
+		total_loss = 0
+		for i, (x, y) in enumerate(self.loader):
+			# 输入训练数据
+			# 清空上一次梯度
+			self.optimizer.zero_grad()
+			output = self.net(x)
+			# 计算误差
+			loss = self.loss_func(output, y)
+			total_loss += loss
+			# 误差反向传递
+			loss.backward()
+			# 优化器参数更新
+			self.optimizer.step()
+			if i % 10 == 5:
+				print('Epoch', self.epoch, '|step ', i, 'loss: %.4f' % loss.item(), )
+		print('Epoch', self.epoch, 'total_loss', total_loss.item())
+		self.epoch += 1
+		return self
+
+	#@torchsnooper.snoop()
+	@classmethod
+	def main(cls):
+		path_train = []
+		file = open('path_train.txt', mode='r')
+		content = file.readlines()
+		for i in range(len(content)):
+			path_train.append(content[i][:-1])
+
+		label_train = []
+		file = open('label_train.txt', mode='r')
+		content = file.readlines()
+		for i in range(len(content)):
+			label_train.append(float(content[i][:-1]))
+			#print(float(content[i][:-1]))
+
+		BATCH_SIZE = 128
+
+		train_data = FogData(path_train, label_train, False)
+		train_loader = data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, )
+		trainer = DehazeNetTrainer(DehazeNet()).open(r'defog4_noaug.pth').setup(train_loader)
+		for epoch in range(trainer.EPOCH):
+			trainer.loop()
+		trainer.save(r'defog4_noaug.pth')
+
 
 
 def visualize_results(debug_images, titles=None):
@@ -367,7 +398,7 @@ def visualize_results(debug_images, titles=None):
 # 使用示例
 if __name__ == "__main__":
     # 加载图像
-    img_path = "dehaze_1.jpg"
+    img_path = "dehaze_4.jpg"
     img = Image.open(img_path).convert("RGB")
     
     # 初始化模型
@@ -383,4 +414,4 @@ if __name__ == "__main__":
     
     # 保存结果
     result_img = Image.fromarray((result * 255).astype(np.uint8))
-    result_img.save("dehaze_1_result.jpg")
+    result_img.save("dehaze_4_result.jpg")

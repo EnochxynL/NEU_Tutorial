@@ -145,7 +145,7 @@ class Main:
         return np.vstack(h_imgs)
 
     @classmethod
-    def main(cls, name: str="city.jpg"):
+    def main(cls, name: str="dehaze_4.jpg"):
         img = cv2.imread(f"{name}").astype(np.float32) / 255.0
 
         dehaze = Dehaze()
