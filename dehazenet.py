@@ -39,7 +39,7 @@ class DehazeNet(nn.Module):
         self.groups = groups
         
         # Feature Extraction
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.input_channels, kernel_size=5, padding=0)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.input_channels, kernel_size=5, padding=2)
         # Multi-scale Mapping
         self.conv2 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=5, padding=2)
@@ -61,6 +61,8 @@ class DehazeNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
     
     def forward(self, x):
+        # 保存输入尺寸
+        orig_size = x.size()[2:]
         # Feature Extraction
         out = self.conv1(x)
         out = self.Maxout(out, self.groups)
@@ -74,9 +76,9 @@ class DehazeNet(nn.Module):
         # Non-linear Regression
         y = self.conv5(y)
         y = self.brelu(y)
-        # 展平输出，与原始代码相同
-        y = y.reshape(y.shape[0], -1)
-        
+        # 确保输出与输入相同尺寸
+        y = torch.nn.functional.interpolate(y, size=orig_size, mode='bilinear', align_corners=False)
+        # 返回全分辨率传输图
         return y
 
 
@@ -128,46 +130,65 @@ class DehazeNetDriver:
 class DehazeNetRunner():
     
     @staticmethod
-    def transmission_map(img_np, driver: DehazeNetDriver, patch_size=16):
-        # 数据转换格式
+    def transmission_map(img_np, driver: DehazeNetDriver, patch_size=128, stride=64):
+        """
+        使用滑动窗口处理大图像，保持传输图的空间连续性
+        
+        Args:
+            img_np: 输入图像，值在0-1之间
+            driver: 模型驱动
+            patch_size: patch大小
+            stride: 滑动步长，小于patch_size实现重叠
+        """
+        h, w, _ = img_np.shape
+        
+        # 创建传输图，初始为0和权重图
+        t_map = np.zeros((h, w), dtype=np.float32)
+        weight_map = np.zeros((h, w), dtype=np.float32)
+        
+        # 转换函数，保持与原始代码一致
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # 映射到[-1,1]
         ])
         
-        h, w, _ = img_np.shape
-
-        # 根据patch大小扩大画布：计算需要padding的大小
-        pad_h = (patch_size - h % patch_size) % patch_size
-        pad_w = (patch_size - w % patch_size) % patch_size
-        if pad_h > 0 or pad_w > 0:
-            img_np_pad = np.pad(img_np, ((0, pad_h), (0, pad_w), (0, 0)), mode='reflect')
-        else:
-            img_np_pad = img_np
-        h_pad, w_pad, _ = img_np_pad.shape
-        num_h = h_pad // patch_size
-        num_w = w_pad // patch_size
-
-        # 创建传输图
-        t_map = np.zeros((h_pad, w_pad))
-        # 处理每个patch
-        for i in range(num_w):
-            for j in range(num_h):
-                # 提取patch
-                patch_np = img_np_pad[j*patch_size:(j+1)*patch_size, i*patch_size:(i+1)*patch_size, :]
-                # 转换为tensor
-                patch_tensor = transform(Image.fromarray((patch_np*255).astype(np.uint8)))
-                patch_tensor = patch_tensor.unsqueeze(0)
-                # 预测传输系数
-                with torch.no_grad():
-                    t = driver.net(patch_tensor.to(driver.device))
-                    t_value = t.cpu().item()
-                # 填充传输图
-                t_map[j*patch_size:(j+1)*patch_size, i*patch_size:(i+1)*patch_size] = t_value
-        # 裁剪回原始大小
-        t_map = t_map[:h, :w]
-        return t_map
+        # 计算滑动窗口位置
+        y_positions = list(range(0, h - patch_size + 1, stride))
+        x_positions = list(range(0, w - patch_size + 1, stride))
         
+        # 处理边界情况
+        if y_positions[-1] + patch_size < h:
+            y_positions.append(h - patch_size)
+        if x_positions[-1] + patch_size < w:
+            x_positions.append(w - patch_size)
+        
+        # 滑动窗口处理
+        for y in y_positions:
+            for x in x_positions:
+                # 提取patch
+                patch = img_np[y:y+patch_size, x:x+patch_size, :]
+                
+                # 转换并预测
+                patch_tensor = transform(Image.fromarray((patch * 255).astype(np.uint8)))
+                patch_tensor = patch_tensor.unsqueeze(0).to(driver.device)
+                
+                with torch.no_grad():
+                    t_patch = driver.net(patch_tensor)
+                    t_patch = t_patch.squeeze().cpu().numpy()
+                
+                # 使用高斯权重（中心权重高，边缘权重低）
+                gaussian_weight = np.ones((patch_size, patch_size), dtype=np.float32)
+                
+                # 累加到传输图
+                t_map[y:y+patch_size, x:x+patch_size] += t_patch * gaussian_weight
+                weight_map[y:y+patch_size, x:x+patch_size] += gaussian_weight
+        
+        # 避免除零
+        weight_map[weight_map == 0] = 1
+        t_map = t_map / weight_map
+        
+        return t_map
+    
     @staticmethod
     def atmospheric_light(t_map, img_np):
         h, w, _ = img_np.shape
