@@ -134,17 +134,10 @@ class DehazeNetRunner:
             img_np: 输入图像，值在0-1之间
             driver: 模型驱动
         """
-        # 论文原始代码的预处理：直接减去0.5
+        # 论文原始代码的预处理：直接减去0.5；有转换函数来自 https://github.com/thuBingo/DehazeNet_Pytorch 移植代码
         img_tensor = torch.from_numpy(img_np).permute(2, 0, 1).float()  # HWC -> CHW
         img_tensor = img_tensor - 0.5  # 原始代码的预处理
 
-        # # 转换函数，来自 https://github.com/thuBingo/DehazeNet_Pytorch 原始代码
-        # transform = transforms.Compose([
-        #     transforms.ToTensor(),
-        #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        # ])
-        # img_tensor = transform(Image.fromarray((img_np * 255).astype(np.uint8)))
-        
         # 添加batch维度
         img_tensor = img_tensor.unsqueeze(0).to(driver.device)
         
@@ -235,38 +228,28 @@ class DehazeNetRunner:
         # 确保t_map有正确的形状
         if t_map.ndim == 2:
             t_map = np.expand_dims(t_map, axis=2)
-        
         # 防止除零
         t_map = np.clip(t_map, t_min, 1.0)
-        
         # 去雾公式：J = (I - A)/t + A
         J = (img_np - A) / t_map + A
-        
         # 限制在0-1之间
         J = np.clip(J, 0, 1)
-        
         return J
     
     def forward(self, img, driver):
         """完整的去雾流程"""
         # 转换为numpy数组
         img_np = np.array(img) / 255.0
-        
         # 计算传输图
         t_map = self.transmission_map(img_np, driver)
-        
         # 转换为灰度图用于引导滤波
         gray_img = np.dot(img_np[..., :3], [0.299, 0.587, 0.114]) # RGB到灰度转换的标准权重系数
-        
         # 引导滤波（与原始代码一致）
         t_map = self.guided_filter(gray_img, t_map, radius=50, eps=0.001)
-        
         # 估计大气光
         A = self.atmospheric_light(t_map, img_np)
-        
         # 去雾
         result = self.dehaze(img_np, t_map, A)
-        
         # 保存调试信息
         self.debug = [
             img_np,
@@ -274,144 +257,220 @@ class DehazeNetRunner:
             np.full_like(img_np, A),
             result
         ]
-        
         return result
 
 from torch.utils.data.dataset import Dataset
 
 class FogData(Dataset):
-	IMAGE_AUGUMENTATION = transforms.Compose([
-		transforms.RandomHorizontalFlip(0.5),
-		transforms.RandomVerticalFlip(0.5),
-		transforms.RandomRotation(30),
-		transforms.ToTensor(),
-		transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-	])
 
-	# root：图像存放地址根路径
-	# augment：是否需要图像增强
-	def __init__(self, root, labels, augment=True):
-		# 初始化 可以定义图片地址 标签 是否变换 变换函数
-		self.image_files = root
-		self.labels = torch.cuda.FloatTensor(labels)
-		self.augment = augment   # 是否需要图像增强
-		# self.transform = transform
+    # root：图像存放地址根路径
+    # augment：是否需要图像增强
+    def __init__(self, root, labels, augment=True):
+        # 初始化 可以定义图片地址 标签 是否变换 变换函数
+        self.image_files = root
+        self.labels = torch.cuda.FloatTensor(labels)
+        self.augment = augment   # 是否需要图像增强
+        # self.transform = transform
 
-	def __getitem__(self, index):
-		# 读取图像数据并返回
-		if self.augment:
-			img = Image.open(self.image_files[index])
-			img = self.IMAGE_AUGUMENTATION(img)
-			img = img.cuda()
-			return img, self.labels[index]
-		else:
-			img = Image.open(self.image_files[index])
-			img = self.IMAGE_LOADER(img)
-			img = img.cuda()
-			return img, self.labels[index]
+    def __getitem__(self, index):
+        
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[1, 1, 1]),
+        ])
+        transform_augumentation = transforms.Compose([
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
+            transforms.RandomRotation(30),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std = [1, 1, 1]), # (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]) # TODO: transform的形式未来可以优化
+        # 读取图像数据并返回
+        if self.augment:
+            img = Image.open(self.image_files[index])
+            img = transform_augumentation(img)
+            img = img.cuda()
+            return img, self.labels[index]
+        else:
+            img = Image.open(self.image_files[index])
+            img = transform(img)
+            img = img.cuda()
+            return img, self.labels[index]
 
-	def __len__(self):
-		# 返回图像的数量
-		return len(self.image_files)
+    def __len__(self):
+        # 返回图像的数量
+        return len(self.image_files)
+
+
+import os
+import random
+import torch.utils.data as data
+
+class DehazeNetTrainer:
     
+    @staticmethod
+    def save_dataset(path_train, label_train, path_txt='path_train.txt', label_txt='label_train.txt'):
+        # 将图像路径保存到文本文件
+        file = open(path_txt, mode='a')
+        for i in range(len(path_train)):
+            file.write(str(path_train[i]) + '\n')
+        file.close()
+        
+        # 将对应的标签（透射率t值）保存到文本文件
+        file = open(label_txt, mode='a')
+        for i in range(len(label_train)):
+            file.write(str(label_train[i]) + '\n')
+        file.close()
 
-class DehazeNetTrainer():
+    @staticmethod
+    def open_dataset(path_txt='path_train.txt', label_txt='label_train.txt'):
+        path_train = []
+        file = open(path_txt, mode='r')
+        content = file.readlines()
+        for i in range(len(content)):
+            path_train.append(content[i][:-1])
 
-	EPOCH = 10
+        label_train = []
+        file = open(label_txt, mode='r')
+        content = file.readlines()
+        for i in range(len(content)):
+            label_train.append(float(content[i][:-1]))
+        return path_train, label_train
 
-	def setup(self, loader):
-		self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.0000005)
-		self.loader = loader
-		self.loss_func = nn.MSELoss().cuda()
-		self.epoch = 0
-		return self
+    @staticmethod
+    def new_dataset(img_dir, data_dir, num_t=10, patch_size=16):
+        """
+        从无雾图像生成有雾图像训练数据集
+        
+        参数:
+        img_dir: 无雾图像目录路径
+        data_dir: 生成的数据集保存目录，影响path_train的根目录
+        num_t: 每个图像块生成的透射率t(x)数量
+        patch_size: 图像块大小（像素）
+        """
+        # 获取无雾图像目录中的所有图像文件名
+        img_path = os.listdir(img_dir)
+        # 初始化存储路径和标签的列表
+        path_train = []  # 存储生成的有雾图像路径
+        label_train = []  # 存储对应的透射率t值
+        
+        # 遍历每张无雾图像
+        for image_name in img_path:
+            # 构建完整的图像路径
+            fullname = os.path.join(img_dir, image_name)
+            # 读取图像（OpenCV读取为BGR格式）
+            img = cv2.imread(fullname)
+            # 获取图像尺寸
+            w, h, _ = img.shape
+            # 计算图像可以被划分为多少个patch
+            num_w = int(w / patch_size)
+            num_h = int(h / patch_size)
+            # 遍历图像中的每个patch（排除边缘的patch）
+            for i in range(1, num_w-1):
+                for j in range(1, num_h-1):
+                    # 提取无雾图像块
+                    free_patch = img[0 + i * patch_size:patch_size + i * patch_size,
+                                    0 + j * patch_size:patch_size + j * patch_size, :]
+                    # 为当前图像块生成num_t个不同的有雾版本
+                    for k in range(num_t):
+                        # 随机生成透射率t，范围在[0, 1)之间
+                        t = random.random()
+                        # 根据雾化模型生成有雾图像块: I = J * t + A * (1-t)
+                        # 这里假设大气光A=255（白色雾）
+                        hazy_patch = free_patch * t + 255 * (1 - t)
+                        # 随机决定是否保存该样本（50%概率）
+                        x = random.random()
+                        if x > 0.5:
+                            # 构建文件名: i坐标 + j坐标 + k序号 + 原图像名
+                            picname = '%s'%i + '%s'%j + '%s'%k + image_name
+                            hazy_path = os.path.join(data_dir, picname)
+                            # 保存有雾图像块到文件
+                            cv2.imwrite(hazy_path, hazy_patch) # FIXME: 这里虽然把IO放进循环体内不易于分离职责，但是节省了存储空间，不需要暂存图片
+                            # 记录文件路径和对应的透射率t
+                            path_train.append(hazy_path)
+                            label_train.append(t)
+        print(f"数据集创建完成！共生成 {len(path_train)} 个样本。")
+        return path_train, label_train
 
-	def loop(self):
-		total_loss = 0
-		for i, (x, y) in enumerate(self.loader):
-			# 输入训练数据
-			# 清空上一次梯度
-			self.optimizer.zero_grad()
-			output = self.net(x)
-			# 计算误差
-			loss = self.loss_func(output, y)
-			total_loss += loss
-			# 误差反向传递
-			loss.backward()
-			# 优化器参数更新
-			self.optimizer.step()
-			if i % 10 == 5:
-				print('Epoch', self.epoch, '|step ', i, 'loss: %.4f' % loss.item(), )
-		print('Epoch', self.epoch, 'total_loss', total_loss.item())
-		self.epoch += 1
-		return self
+    def __init__(self, path_txt='path_train.txt', label_txt='label_train.txt', batch_size=128):
+        path_train, label_train = self.open_dataset(path_txt, label_txt)
+        train_data = FogData(path_train, label_train, False)
+        train_loader = data.DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, )
 
-	#@torchsnooper.snoop()
-	@classmethod
-	def main(cls):
-		path_train = []
-		file = open('path_train.txt', mode='r')
-		content = file.readlines()
-		for i in range(len(content)):
-			path_train.append(content[i][:-1])
+        self.dataloader = train_loader
+        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.0000005)
+        self.loss_func = nn.MSELoss().cuda()
 
-		label_train = []
-		file = open('label_train.txt', mode='r')
-		content = file.readlines()
-		for i in range(len(content)):
-			label_train.append(float(content[i][:-1]))
-			#print(float(content[i][:-1]))
-
-		BATCH_SIZE = 128
-
-		train_data = FogData(path_train, label_train, False)
-		train_loader = data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, )
-		trainer = DehazeNetTrainer(DehazeNet()).open(r'defog4_noaug.pth').setup(train_loader)
-		for epoch in range(trainer.EPOCH):
-			trainer.loop()
-		trainer.save(r'defog4_noaug.pth')
+    def loop(self, driver):
+        total_loss = 0
+        for i, (x, y) in enumerate(self.dataloader):
+            # 输入训练数据
+            # 清空上一次梯度
+            self.optimizer.zero_grad()
+            output = driver.net(x)
+            # 计算误差
+            loss = self.loss_func(output, y)
+            total_loss += loss
+            # 误差反向传递
+            loss.backward()
+            # 优化器参数更新
+            self.optimizer.step()
+            if i % 10 == 5:
+                print(' |step ', i, 'loss: %.4f' % loss.item(), )
+        print(' |total_loss', total_loss.item())
+        return self
 
 
+class Main:
 
-def visualize_results(debug_images, titles=None):
-    """可视化调试图像"""
-    import matplotlib.pyplot as plt
-    
-    if titles is None:
-        titles = ["Original", "Transmission Map", "Atmospheric Light", "Dehazed"]
-    
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-    
-    for i, (img, title) in enumerate(zip(debug_images, titles)):
-        ax = axes[i]
-        if img.ndim == 2:  # 灰度图
-            ax.imshow(img, cmap='gray')
-        else:  # RGB图
-            ax.imshow(np.clip(img, 0, 1))
-        ax.set_title(title)
-        ax.axis('off')
-    
-    plt.tight_layout()
-    plt.show()
+    @staticmethod
+    def visualize_results(debug_images, titles=None):
+        """可视化调试图像"""
+        import matplotlib.pyplot as plt
+        if titles is None:
+            titles = ["Original", "Transmission Map", "Atmospheric Light", "Dehazed"]
+        fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+        for i, (img, title) in enumerate(zip(debug_images, titles)):
+            ax = axes[i]
+            if img.ndim == 2:  # 灰度图
+                ax.imshow(img, cmap='gray')
+            else:  # RGB图
+                ax.imshow(np.clip(img, 0, 1))
+            ax.set_title(title)
+            ax.axis('off')
+        plt.tight_layout()
+        plt.show()
 
+    @classmethod
+    def train(cls):
+        EPOCH = 10
+        BATCH_SIZE = 128
+        train_driver = DehazeNetDriver(DehazeNet())
+        train_driver.open("defog4_noaug.pth") # 加载预训练权重
 
-# 使用示例
+        train_runner = DehazeNetTrainer(batch_size=BATCH_SIZE)
+        for epoch in range(EPOCH):
+            print('Epoch', epoch)
+            train_runner.loop(train_driver)
+
+        train_driver.save('defog4_noaug_enoch.pth')
+
+    @classmethod
+    def test(cls, img_path="dehaze_1.jpg", result_path="dehaze_1_result.jpg"):
+        # 加载图像
+        img = Image.open(img_path).convert("RGB")
+        # 初始化模型
+        driver = DehazeNetDriver(DehazeNet())
+        driver.open("defog4_noaug.pth")  # 加载预训练权重
+        # 执行去雾
+        runner = DehazeNetRunner()
+        result = runner.forward(img, driver)
+        # 可视化结果
+        cls.visualize_results(runner.debug)
+        # 保存结果
+        result_img = Image.fromarray((result * 255).astype(np.uint8))
+        result_img.save(result_path)
+
+import typer
 if __name__ == "__main__":
-    # 加载图像
-    img_path = "dehaze_4.jpg"
-    img = Image.open(img_path).convert("RGB")
-    
-    # 初始化模型
-    driver = DehazeNetDriver(DehazeNet())
-    driver.open("defog4_noaug.pth")  # 加载预训练权重
-    
-    # 执行去雾
-    runner = DehazeNetRunner()
-    result = runner.forward(img, driver)
-    
-    # 可视化结果
-    visualize_results(runner.debug)
-    
-    # 保存结果
-    result_img = Image.fromarray((result * 255).astype(np.uint8))
-    result_img.save("dehaze_4_result.jpg")
+    typer.run(Main.test)
