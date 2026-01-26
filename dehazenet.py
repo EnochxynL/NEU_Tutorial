@@ -341,7 +341,7 @@ class DehazeNetTrainer:
         return path_train, label_train
 
     @staticmethod
-    def new_dataset(img_dir, data_dir, num_t=10, patch_size=16):
+    def new_dataset(img_dir, data_dir, num_t=10, num_t_proportion=0.4, patch_size=16, num_patch_proportion=0.2):
         """
         从无雾图像生成有雾图像训练数据集
         
@@ -368,9 +368,11 @@ class DehazeNetTrainer:
             # 计算图像可以被划分为多少个patch
             num_w = int(w / patch_size)
             num_h = int(h / patch_size)
-            # 遍历图像中的每个patch（排除边缘的patch）
-            for i in range(1, num_w-1):
-                for j in range(1, num_h-1):
+            # 随机采样图像中的每个patch（排除边缘的patch）
+            sample_w = random.sample(range(1, num_w-1), int(num_w*num_patch_proportion))
+            sample_h = random.sample(range(1, num_h-1), int(num_w*num_patch_proportion))
+            for i in sample_w:
+                for j in sample_h:
                     # 提取无雾图像块
                     free_patch = img[0 + i * patch_size:patch_size + i * patch_size,
                                     0 + j * patch_size:patch_size + j * patch_size, :]
@@ -383,7 +385,7 @@ class DehazeNetTrainer:
                         hazy_patch = free_patch * t + 255 * (1 - t)
                         # 随机决定是否保存该样本（50%概率）
                         x = random.random()
-                        if x > 0.5:
+                        if x < num_t_proportion:
                             # 构建文件名: i坐标 + j坐标 + k序号 + 原图像名
                             picname = '%s'%i + '%s'%j + '%s'%k + image_name
                             hazy_path = os.path.join(data_dir, picname)
@@ -451,6 +453,11 @@ class Main:
         plt.show()
 
     @classmethod
+    def dataset(cls):
+        path_train, label_train = DehazeNetTrainer.new_dataset('./data/haze_free', './data/dehazenet')
+        DehazeNetTrainer.save_dataset(path_train, label_train, path_txt='data/dehazenet/path_train.txt', label_txt='data/dehazenet/label_train.txt')
+
+    @classmethod
     def train(cls):
         EPOCH = 10
         BATCH_SIZE = 128
@@ -458,7 +465,7 @@ class Main:
         train_driver = DehazeNetDriver(DehazeNet())
         train_driver.open("defog4_noaug.pth") # 加载预训练权重
         # 加载训练器及数据
-        train_runner = DehazeNetTrainer(train_driver, batch_size=BATCH_SIZE)
+        train_runner = DehazeNetTrainer(train_driver, path_txt='data/dehazenet/path_train.txt', label_txt='data/dehazenet/label_train.txt', batch_size=BATCH_SIZE)
         for epoch in range(EPOCH):
             print('Epoch', epoch)
             train_runner.loop()
@@ -482,4 +489,5 @@ class Main:
 
 import typer
 if __name__ == "__main__":
+    # Main.dataset()
     typer.run(Main.train)
