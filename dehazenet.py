@@ -84,6 +84,7 @@ class DehazeNetDriver:
     def __init__(self, net=None):
         self.net = net or DehazeNet()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(self.device)
         self.net.to(self.device)
         self.net.eval()
     
@@ -341,7 +342,7 @@ class DehazeNetTrainer:
         return path_train, label_train
 
     @staticmethod
-    def new_dataset(img_dir, data_dir, num_t=10, num_t_proportion=0.4, patch_size=16, num_patch_proportion=0.2):
+    def new_dataset(img_dir, data_dir, num_t=10, num_t_proportion=0.4, patch_size=16, num_patch_proportion=0.4):
         """
         从无雾图像生成有雾图像训练数据集
         
@@ -459,13 +460,13 @@ class Main:
 
     @classmethod
     def train(cls):
-        EPOCH = 10
-        BATCH_SIZE = 128
+        EPOCH = 20
+        BATCH_SIZE = 256
         # 初始化模型
         train_driver = DehazeNetDriver(DehazeNet())
-        train_driver.open("defog4_noaug.pth") # 加载预训练权重
+        # train_driver.open("defog4_noaug.pth") # 加载预训练权重
         # 加载训练器及数据
-        train_runner = DehazeNetTrainer(train_driver, path_txt='data/dehazenet/path_train.txt', label_txt='data/dehazenet/label_train.txt', batch_size=BATCH_SIZE)
+        train_runner = DehazeNetTrainer(train_driver, path_txt='data/dehazenet/path_train.txt', label_txt='data/dehazenet/label_train.txt', batch_size=BATCH_SIZE, learning_rate=0.0001)
         for epoch in range(EPOCH):
             print('Epoch', epoch)
             train_runner.loop()
