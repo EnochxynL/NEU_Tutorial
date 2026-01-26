@@ -455,7 +455,7 @@ class Main:
 
     @classmethod
     def dataset(cls):
-        path_train, label_train = DehazeNetTrainer.new_dataset('./asset/dehazenet', './data/dehazenet')
+        path_train, label_train = DehazeNetTrainer.new_dataset('./assets/dehazenet', './data/dehazenet')
         DehazeNetTrainer.save_dataset(path_train, label_train, path_txt='data/dehazenet/path_train.txt', label_txt='data/dehazenet/label_train.txt')
 
     @classmethod
