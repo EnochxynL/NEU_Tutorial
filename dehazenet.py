@@ -268,34 +268,37 @@ class FogData(Dataset):
     def __init__(self, root, labels, augment=True):
         # 初始化 可以定义图片地址 标签 是否变换 变换函数
         self.image_files = root
-        self.labels = torch.cuda.FloatTensor(labels)
+        # self.labels = torch.cuda.FloatTensor(labels)
+        self.labels = labels  # 不要转换为cuda张量，保持为普通列表
         self.augment = augment   # 是否需要图像增强
         # self.transform = transform
 
     def __getitem__(self, index):
-        
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[1, 1, 1]),
-        ])
-        transform_augumentation = transforms.Compose([
-            transforms.RandomHorizontalFlip(0.5),
-            transforms.RandomVerticalFlip(0.5),
-            transforms.RandomRotation(30),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std = [1, 1, 1]), # (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]) # TODO: transform的形式未来可以优化
         # 读取图像数据并返回
         if self.augment:
+            transform_augumentation = transforms.Compose([
+                transforms.RandomHorizontalFlip(0.5),
+                transforms.RandomVerticalFlip(0.5),
+                transforms.RandomRotation(30),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std = [1, 1, 1]), # (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]) # TODO: transform的形式未来可以优化
             img = Image.open(self.image_files[index])
             img = transform_augumentation(img)
-            img = img.cuda()
-            return img, self.labels[index]
+            # img = img.cuda()
+            # return img, self.labels[index]
+            # 不要在这里移动设备
         else:
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[1, 1, 1]),
+            ])
             img = Image.open(self.image_files[index])
             img = transform(img)
-            img = img.cuda()
-            return img, self.labels[index]
+            # img = img.cuda()
+            # return img, self.labels[index]
+            # 不要在这里移动设备
+        return img, torch.tensor(self.labels[index], dtype=torch.float32)
 
     def __len__(self):
         # 返回图像的数量
@@ -392,24 +395,30 @@ class DehazeNetTrainer:
         print(f"数据集创建完成！共生成 {len(path_train)} 个样本。")
         return path_train, label_train
 
-    def __init__(self, path_txt='path_train.txt', label_txt='label_train.txt', batch_size=128):
+    def __init__(self, driver, path_txt='path_train.txt', label_txt='label_train.txt', batch_size=128, learning_rate=0.0000005, use_augment=True):
         path_train, label_train = self.open_dataset(path_txt, label_txt)
-        train_data = FogData(path_train, label_train, False)
+        train_data = FogData(path_train, label_train, use_augment)
         train_loader = data.DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, )
 
+        self.netdriver = driver
         self.dataloader = train_loader
-        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.0000005)
+        self.optimizer = torch.optim.Adam(self.netdriver.net.parameters(), lr=learning_rate)
         self.loss_func = nn.MSELoss().cuda()
 
-    def loop(self, driver):
+    def loop(self):
         total_loss = 0
         for i, (x, y) in enumerate(self.dataloader):
             # 输入训练数据
+            # 将数据移动到GPU
+            x = x.to(self.netdriver.device)
+            y = y.to(self.netdriver.device)
             # 清空上一次梯度
             self.optimizer.zero_grad()
-            output = driver.net(x)
+            output = self.netdriver.net(x)
+            # 论文利用了传输图的局部近似不变，因此标签t是一个标量。把标签t扩展到输出图的形式
+            y_expanded = y.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand_as(output)
             # 计算误差
-            loss = self.loss_func(output, y)
+            loss = self.loss_func(output, y_expanded)
             total_loss += loss
             # 误差反向传递
             loss.backward()
@@ -445,14 +454,14 @@ class Main:
     def train(cls):
         EPOCH = 10
         BATCH_SIZE = 128
+        # 初始化模型
         train_driver = DehazeNetDriver(DehazeNet())
         train_driver.open("defog4_noaug.pth") # 加载预训练权重
-
-        train_runner = DehazeNetTrainer(batch_size=BATCH_SIZE)
+        # 加载训练器及数据
+        train_runner = DehazeNetTrainer(train_driver, batch_size=BATCH_SIZE)
         for epoch in range(EPOCH):
             print('Epoch', epoch)
-            train_runner.loop(train_driver)
-
+            train_runner.loop()
         train_driver.save('defog4_noaug_enoch.pth')
 
     @classmethod
@@ -473,4 +482,4 @@ class Main:
 
 import typer
 if __name__ == "__main__":
-    typer.run(Main.test)
+    typer.run(Main.train)
