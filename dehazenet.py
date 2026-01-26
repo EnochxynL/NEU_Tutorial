@@ -473,12 +473,12 @@ class Main:
         train_driver.save('defog4_noaug_enoch.pth')
 
     @classmethod
-    def test(cls, img_path="dehaze_1.jpg", result_path="dehaze_1_result.jpg"):
+    def test(cls, img_path="dehaze_4.jpg", result_path="dehaze_4_result.jpg"):
         # 加载图像
         img = Image.open(img_path).convert("RGB")
         # 初始化模型
         driver = DehazeNetDriver(DehazeNet())
-        driver.open("defog4_noaug.pth")  # 加载预训练权重
+        driver.open("defog4_noaug_enoch.pth")  # 加载预训练权重
         # 执行去雾
         runner = DehazeNetRunner()
         result = runner.forward(img, driver)
@@ -491,4 +491,5 @@ class Main:
 import typer
 if __name__ == "__main__":
     # Main.dataset()
-    typer.run(Main.train)
+    # typer.run(Main.train)
+    typer.run(Main.test)
