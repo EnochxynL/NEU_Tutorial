@@ -658,12 +658,6 @@ class BlazeHandLandmark(BlazeLandmark):
 
         # MediaPipePyTorch/blazepalm.py
         # mediapipe/mediapipe/modules/hand_landmark/hand_landmark_landmarks_to_roi.pbtxt
-        self.theta0 = np.pi/2
-        '''rotation_vector_target_angle_degrees'''
-        self.dscale = 2.6
-        '''scale_x, scale_y'''
-        self.dy = -0.5
-        '''shift_y'''
 
         self._define_layers()
 
@@ -928,6 +922,11 @@ class BlazeRunner:
             return projected_center_x, projected_center_y, projected_width, projected_height
         projected_center_x, projected_center_y, projected_width, projected_height = find_boundaries_of_rotated_landmarks(partial_landmarks, rotation, axis_aligned_center_x, axis_aligned_center_y)
         
+        # mediapipe/mediapipe/modules/hand_landmark/hand_landmark_landmarks_to_roi.pbtxt
+        # [mediapipe.RectTransformationCalculatorOptions.ext]
+
+        projected_center_y *= -1 # shift_y: -0.1 因此检测框上移一点
+
         cos_rot = torch.cos(rotation)  # (batch_size,)
         sin_rot = torch.sin(rotation)  # (batch_size,)
         # 将中心旋转回原始方向
@@ -935,12 +934,12 @@ class BlazeRunner:
                     projected_center_y * sin_rot + 
                     axis_aligned_center_x)  # (batch_size,)
         center_y = (projected_center_x * sin_rot + 
-                    projected_center_y * cos_rot + 
+                    projected_center_y * cos_rot+ 
                     axis_aligned_center_y)  # (batch_size,)
         # 计算宽度和高度
         width =  projected_width  # (batch_size,)
         height =  projected_height  # (batch_size,)
-        
+
         xc = center_x  # (batch_size,)
         yc = center_y  # (batch_size,)
         theta = rotation
