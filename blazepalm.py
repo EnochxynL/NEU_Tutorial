@@ -219,6 +219,7 @@ class BlazeDetector(BlazeBase):
 
         Adapted from:
         # mediapipe/modules/face_landmark/face_detection_front_detection_to_roi.pbtxt
+        # mediapipe/modules/hand_landmark/palm_detection_detection_to_roi.pbtxt
 
         The center and size of the box is calculated from the center 
         of the detected box. Rotation is calcualted from the vector
@@ -226,13 +227,13 @@ class BlazeDetector(BlazeBase):
         and shifted by dscale and dy.
 
         """
+        # 根据某个关键点计算大小、质心
         if self.detection2roi_method == 'box':
             # compute box center and scale
             # use mediapipe/calculators/util/detections_to_rects_calculator.cc
             xc = (detection[:,1] + detection[:,3]) / 2
             yc = (detection[:,0] + detection[:,2]) / 2
             scale = (detection[:,3] - detection[:,1]) # assumes square boxes
-
         elif self.detection2roi_method == 'alignment':
             # compute box center and scale
             # use mediapipe/calculators/util/alignment_points_to_rects_calculator.cc
@@ -245,6 +246,7 @@ class BlazeDetector(BlazeBase):
             raise NotImplementedError(
                 "detection2roi_method [%s] not supported"%self.detection2roi_method)
 
+        # 内置的偏移常数
         yc += self.dy * scale
         scale *= self.dscale
 
@@ -439,6 +441,7 @@ class BlazeDetector(BlazeBase):
 class BlazePalm(BlazeDetector):
     """The palm detection model from MediaPipe. """
     def __init__(self):
+        '''https://github.com/zmurez/MediaPipePyTorch'''
         super(BlazePalm, self).__init__()
 
         # These are the settings from the MediaPipe example graph
@@ -460,11 +463,17 @@ class BlazePalm(BlazeDetector):
         # use mediapipe/calculators/util/detections_to_rects_calculator.cc
         self.detection2roi_method = 'box'
         # mediapipe/graphs/hand_tracking/subgraphs/hand_detection_cpu.pbtxt
+        # mediapipe/mediapipe/modules/hand_landmark/palm_detection_detection_to_roi.pbtxt
         self.kp1 = 0
+        '''rotation_vector_start_keypoint_index'''
         self.kp2 = 2
+        '''rotation_vector_end_keypoint_index'''
         self.theta0 = np.pi/2
+        '''rotation_vector_target_angle_degrees'''
         self.dscale = 2.6
+        '''scale_x, scale_y'''
         self.dy = -0.5
+        '''shift_y'''
 
         self._define_layers()
 
@@ -647,6 +656,15 @@ class BlazeHandLandmark(BlazeLandmark):
         # size of ROIs used for input
         self.resolution = 256
 
+        # MediaPipePyTorch/blazepalm.py
+        # mediapipe/mediapipe/modules/hand_landmark/hand_landmark_landmarks_to_roi.pbtxt
+        self.theta0 = np.pi/2
+        '''rotation_vector_target_angle_degrees'''
+        self.dscale = 2.6
+        '''scale_x, scale_y'''
+        self.dy = -0.5
+        '''shift_y'''
+
         self._define_layers()
 
     def _define_layers(self):
@@ -789,8 +807,8 @@ class BlazeRunner:
         """
         使用PyTorch实现的landmarks_to_rectangle
         完全支持GPU和批量处理
+        image_size = 1因为输入的是denormalized_landmarks
         """
-        partial_landmark_indices = [0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 17, 18]
         
         # 处理空输入
         if landmarks is None or landmarks.numel() == 0:
@@ -815,132 +833,110 @@ class BlazeRunner:
             landmarks = landmarks.unsqueeze(0)
         
         # 提取部分关键点
-        partial_indices = torch.tensor(partial_landmark_indices, device=device)
-        partial_landmarks = torch.index_select(landmarks, 1, partial_indices)
+        partial_indices = torch.tensor([0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 17, 18], device=device)
+        partial_landmarks = landmarks # torch.index_select(landmarks, 1, partial_indices)
         
-        # 提取坐标
-        xs = partial_landmarks[:, :, 0] # * image_width
-        ys = partial_landmarks[:, :, 1] # * image_height
-        
-        # 计算轴对齐边界框
-        max_x, _ = torch.max(xs, dim=1)
-        max_y, _ = torch.max(ys, dim=1)
-        min_x, _ = torch.min(xs, dim=1)
-        min_y, _ = torch.min(ys, dim=1)
-        
-        axis_aligned_center_x = (max_x + min_x) / 2.0
-        axis_aligned_center_y = (max_y + min_y) / 2.0
-
-        # 1. 计算旋转角度
-        # 计算旋转角度（PyTorch版本）
         def compute_rotation(partial_landmarks):
             """
             PyTorch版本的计算手部旋转角度
             partial_landmarks: 部分关键点，形状为(batch_size, 12, 3)
             返回: rotation角度，形状为(batch_size,)
+            来源：mediapipe/mediapipe/calculators/util/detections_to_rects_calculator.cc
             """
             kTargetAngle = torch.tensor(math.pi * 0.5, device=partial_landmarks.device, dtype=partial_landmarks.dtype)
+            kWristJoint = 0
+            kMiddleFingerPIPJoint = 6
+            kIndexFingerPIPJoint = 4
+            kRingFingerPIPJoint = 8
             
             # 获取手腕坐标（索引0）
-            wrist = partial_landmarks[:, 0, :2]  # (batch_size, 2)
+            wrist = partial_landmarks[:, kWristJoint, :2]  # (batch_size, 2)
             x0 = wrist[:, 0]  # (batch_size,)
             y0 = wrist[:, 1]  # (batch_size,)
             
             # 获取食指、中指、无名指的PIP关节
             # 索引：手腕:0, 食指PIP:4, 中指PIP:6, 无名指PIP:8
-            index_pip = partial_landmarks[:, 4, :2]  # (batch_size, 2)
-            middle_pip = partial_landmarks[:, 6, :2]  # (batch_size, 2)
-            ring_pip = partial_landmarks[:, 8, :2]   # (batch_size, 2)
-            
+            index_pip = partial_landmarks[:, kIndexFingerPIPJoint, :2]  # (batch_size, 2)
+            middle_pip = partial_landmarks[:, kMiddleFingerPIPJoint, :2]  # (batch_size, 2)
+            ring_pip = partial_landmarks[:, kRingFingerPIPJoint, :2]   # (batch_size, 2)
             # 计算加权平均点（与C++代码一致）
-            # x1 = (食指PIP.x + 无名指PIP.x) / 2
-            # 然后 x1 = (x1 + 中指PIP.x) / 2
+            # x1 = (食指PIP.x + 无名指PIP.x) / 2 然后 x1 = (x1 + 中指PIP.x) / 2
             x1 = (index_pip[:, 0] + ring_pip[:, 0]) / 2.0  # (batch_size,)
             y1 = (index_pip[:, 1] + ring_pip[:, 1]) / 2.0  # (batch_size,)
-            
             x1 = (x1 + middle_pip[:, 0]) / 2.0  # (batch_size,)
             y1 = (y1 + middle_pip[:, 1]) / 2.0  # (batch_size,)
             
-            # 计算向量角度
-            # atan2(-(y1 - y0), x1 - x0)
+            # 计算向量角度，atan2(-(y1 - y0), x1 - x0)
             # 注意：y取负是因为图像坐标系y向下，数学坐标系y向上
-            dx = x1 - x0
-            dy = y1 - y0
-            angle = torch.atan2(-dy, dx)  # (batch_size,)
-            
-            # 计算与目标角度的差值
-            rotation = kTargetAngle - angle  # (batch_size,)
-            
-            # 标准化角度到[-π, π)范围内
-            # 公式: angle - 2 * π * floor((angle - (-π)) / (2 * π))
+            dx = x1 - x0; dy = y1 - y0
+            rotation = kTargetAngle - torch.atan2(-dy, dx)  # (batch_size,)
+            # 标准化角度到[-π, π)范围内。公式: angle - 2 * π * floor((angle - (-π)) / (2 * π))
             rotation = rotation - 2 * torch.pi * torch.floor((rotation - (-torch.pi)) / (2 * torch.pi))
-            
             return rotation
-
         try:
             rotation = torch.tensor(compute_rotation(partial_landmarks), device=device)
         except Exception as e:
             print(f"Error computing rotation: {e}")
             rotation = torch.zeros(batch_size, device=device, dtype=dtype)
         
-        # 以下为可选的完整旋转边界框计算（当前注释掉）
-        if True:
-            # 3. 计算旋转后的边界框
+        def find_boundaries_of_landmarks(partial_landmarks):
+            ## 边界框计算
+            # 提取坐标
+            xs = partial_landmarks[:, :, 0] # * image_width
+            ys = partial_landmarks[:, :, 1] # * image_height
+            # 计算轴对齐边界框
+            max_x, _ = torch.max(xs, dim=1)
+            max_y, _ = torch.max(ys, dim=1)
+            min_x, _ = torch.min(xs, dim=1)
+            min_y, _ = torch.min(ys, dim=1)
+            # 
+            axis_aligned_center_x = (max_x + min_x) / 2.0
+            axis_aligned_center_y = (max_y + min_y) / 2.0
+            return axis_aligned_center_x, axis_aligned_center_y
+        axis_aligned_center_x, axis_aligned_center_y = find_boundaries_of_landmarks(partial_landmarks)
+
+        def find_boundaries_of_rotated_landmarks(partial_landmarks, rotation, axis_aligned_center_x, axis_aligned_center_y):
+            ## 完整旋转边界框计算
+            # 计算旋转后的边界框
             reverse_angle = -rotation  # (batch_size,)
-            cos_rev = torch.cos(reverse_angle)  # (batch_size,)
-            sin_rev = torch.sin(reverse_angle)  # (batch_size,)
-            cos_rot = torch.cos(rotation)  # (batch_size,)
-            sin_rot = torch.sin(rotation)  # (batch_size,)
-            
             # 将部分关键点平移到以中心为原点
             original_x = partial_landmarks[:, :, 0] - axis_aligned_center_x.unsqueeze(1)  # (batch_size, 12)
             original_y = partial_landmarks[:, :, 1] - axis_aligned_center_y.unsqueeze(1)  # (batch_size, 12)
-            
             # 应用反向旋转矩阵（批量处理）
+            cos_rev = torch.cos(reverse_angle)  # (batch_size,)
+            sin_rev = torch.sin(reverse_angle)  # (batch_size,)
             projected_x = original_x * cos_rev.unsqueeze(1) - original_y * sin_rev.unsqueeze(1)  # (batch_size, 12)
             projected_y = original_x * sin_rev.unsqueeze(1) + original_y * cos_rev.unsqueeze(1)  # (batch_size, 12)
-            
             # 找到投影后的极值
             proj_max_x, _ = torch.max(projected_x, dim=1)  # (batch_size,)
             proj_max_y, _ = torch.max(projected_y, dim=1)  # (batch_size,)
             proj_min_x, _ = torch.min(projected_x, dim=1)  # (batch_size,)
             proj_min_y, _ = torch.min(projected_y, dim=1)  # (batch_size,)
-            
             # 计算旋转后坐标系的中心
             projected_center_x = (proj_max_x + proj_min_x) / 2.0  # (batch_size,)
             projected_center_y = (proj_max_y + proj_min_y) / 2.0  # (batch_size,)
-            
-            # 将中心旋转回原始方向
-            center_x = (projected_center_x * cos_rot - projected_center_y * sin_rot + 
-                    axis_aligned_center_x)  # (batch_size,)
-            center_y = (projected_center_x * sin_rot + projected_center_y * cos_rot + 
-                    axis_aligned_center_y)  # (batch_size,)
-            
-            # 计算宽度和高度
-            width = proj_max_x - proj_min_x  # (batch_size,)
-            height = proj_max_y - proj_min_y  # (batch_size,)
-            
-            # 计算质心
-            xc = center_x  # (batch_size,)
-            yc = center_y  # (batch_size,)
-        else:
-            # 简化版本：使用轴对齐边界框
-            width = max_x - min_x  # (batch_size,)
-            height = max_y - min_y  # (batch_size,)
-            # 计算质心
-            xc = axis_aligned_center_x  # (batch_size,)
-            yc = axis_aligned_center_y  # (batch_size,)
+            projected_width = proj_max_x - proj_min_x
+            projected_height = proj_max_y - proj_min_y
+            return projected_center_x, projected_center_y, projected_width, projected_height
+        projected_center_x, projected_center_y, projected_width, projected_height = find_boundaries_of_rotated_landmarks(partial_landmarks, rotation, axis_aligned_center_x, axis_aligned_center_y)
         
-        # 计算scale
-        scale = torch.max(width, height) / 2.0  # (batch_size,)
-
-        # 来自detection2roi方法的代码
-        # yc += self.palm_detector.dy * scale # 这个位置偏移应该不必
-        scale *= 4 # 4.5只是个尝试的比例系数
-
-        # 旋转
-        # theta = torch.zeros(batch_size, device=device, dtype=dtype)
+        cos_rot = torch.cos(rotation)  # (batch_size,)
+        sin_rot = torch.sin(rotation)  # (batch_size,)
+        # 将中心旋转回原始方向
+        center_x = (projected_center_x * cos_rot - 
+                    projected_center_y * sin_rot + 
+                    axis_aligned_center_x)  # (batch_size,)
+        center_y = (projected_center_x * sin_rot + 
+                    projected_center_y * cos_rot + 
+                    axis_aligned_center_y)  # (batch_size,)
+        # 计算宽度和高度
+        width =  projected_width  # (batch_size,)
+        height =  projected_height  # (batch_size,)
+        
+        xc = center_x  # (batch_size,)
+        yc = center_y  # (batch_size,)
         theta = rotation
+        scale = torch.max(width, height) # 就当正方形吧
         
         # 如果只有单个样本，去除batch维度
         if batch_size == 1:
@@ -949,7 +945,7 @@ class BlazeRunner:
             scale = scale.squeeze(0)
             theta = theta.squeeze(0)
         
-        return xc, yc, scale, theta
+        return xc, yc, scale, theta # BUG: 这个顺序很迷惑人，代码不能这么写
     
     def loop(self, frame):
         if self.rect_saved is None or any(r.numel() == 0 for r in self.rect_saved) or (self.rect_saved[2].numel() > 0 and torch.all(self.rect_saved[2] < 64)):
@@ -974,7 +970,7 @@ class BlazeRunner:
 
 class Main:
     @staticmethod
-    def draw_annotation(rendered_image, landmarks, flags):
+    def draw_annotation(img, landmarks, flags):
         # https://github.com/metalwhale/hand_tracking/blob/b2a650d61b4ab917a2367a05b85765b81c0564f2/run.py
         #        8   12  16  20
         #        |   |   |   |
@@ -1011,7 +1007,7 @@ class Main:
         for i in range(len(flags)):
             landmark, flag = landmarks[i], flags[i]
             if flag>.5:
-                draw_landmarks(rendered_image, landmark[:,:2], HAND_CONNECTIONS, size=2)
+                draw_landmarks(img, landmark[:,:2], HAND_CONNECTIONS, size=2)
 
     @staticmethod
     def draw_detections(img, detections, with_keypoints=True):
@@ -1041,7 +1037,7 @@ class Main:
         return img
 
     @staticmethod
-    def draw_roi(img, xc, yc, theta, scale, front_color=(0,255,0)):
+    def draw_roi(img, xc, yc, scale, theta, front_color=(0,255,0)):
         # take points on unit square and transform them according to the roi
         points = torch.tensor([[-1, -1, 1, 1],
                             [-1, 1, -1, 1]], device=scale.device).view(1,2,4)
@@ -1093,13 +1089,13 @@ if __name__ == "__main__":
 
         palm_detections = runnner_debug['palm']
         landmarks, flags = runnner_debug['hand']
-        xc, yc, theta, scale = runnner_debug['roi']
+        xc, yc, scale, theta= runnner_debug['roi']
 
         rendered_frame = frame.copy()
         if palm_detections is not None:
             Main.draw_detections(rendered_frame, palm_detections)
         Main.draw_annotation(rendered_frame, landmarks, flags)
-        Main.draw_roi(rendered_frame, xc, yc, theta, scale)
+        Main.draw_roi(rendered_frame, xc, yc, scale, theta)
         cv2.imshow(WINDOW, rendered_frame[:,:,::-1])
         # cv2.imwrite('sample/%04d.jpg'%frame_ct, frame[:,:,::-1])
 
