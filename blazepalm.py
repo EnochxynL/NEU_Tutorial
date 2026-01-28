@@ -803,11 +803,13 @@ class BlazeRunner:
         rect = self.palm_detector.detection2roi(detections.cpu())
         return rect
         
-    def landmarks_to_rectangle(self, landmarks):
+    @staticmethod
+    def landmarks_to_rectangle(landmarks):
         """
         使用PyTorch实现的landmarks_to_rectangle
         完全支持GPU和批量处理
         image_size = 1因为输入的是denormalized_landmarks
+        针对不同形状的物体，有不同的方法，因此单列开来
         """
         
         # 处理空输入
@@ -834,7 +836,7 @@ class BlazeRunner:
         
         # 提取部分关键点
         partial_indices = torch.tensor([0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 17, 18], device=device)
-        partial_landmarks = landmarks # torch.index_select(landmarks, 1, partial_indices)
+        partial_landmarks = torch.index_select(landmarks, 1, partial_indices)
         
         def compute_rotation(partial_landmarks):
             """
@@ -844,10 +846,16 @@ class BlazeRunner:
             来源：mediapipe/mediapipe/calculators/util/detections_to_rects_calculator.cc
             """
             kTargetAngle = torch.tensor(math.pi * 0.5, device=partial_landmarks.device, dtype=partial_landmarks.dtype)
+            
+            # 在partial_landmarks中的索引（12个点中的位置）
+            # 手腕在partial_landmarks中的索引是0
+            # 食指PIP在partial_landmarks中的索引是5（因为原始索引6对应部分索引5）
+            # 中指PIP在partial_landmarks中的索引是7（原始索引10）
+            # 无名指PIP在partial_landmarks中的索引是9（原始索引14）
             kWristJoint = 0
-            kMiddleFingerPIPJoint = 6
-            kIndexFingerPIPJoint = 4
-            kRingFingerPIPJoint = 8
+            kIndexFingerPIPJoint = 4+1
+            kMiddleFingerPIPJoint = 6+1
+            kRingFingerPIPJoint = 8+1
             
             # 获取手腕坐标（索引0）
             wrist = partial_landmarks[:, kWristJoint, :2]  # (batch_size, 2)
@@ -936,7 +944,7 @@ class BlazeRunner:
         xc = center_x  # (batch_size,)
         yc = center_y  # (batch_size,)
         theta = rotation
-        scale = torch.max(width, height) # 就当正方形吧
+        scale = torch.max(width, height) * 2 # 就当正方形吧。由于只用了部分节点，因此适当扩大方框
         
         # 如果只有单个样本，去除batch维度
         if batch_size == 1:
