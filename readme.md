@@ -18,13 +18,14 @@
 6. Day 6: 参数优化的管线——监督学习的训练
    - dehazenet.py: DehazeNet论文复现：训练
 7. Day 7: 可视化与调试功能的探索
-8. Day 8: 循环性和记忆性复杂结构的监督学习
-   - Mediapipe-Hand项目复现
-9. Day 9: 非监督学习与生成模型
-   - Diffusion生成模型
-10. Day 10: 强化学习
+8. 优化器、机械臂与路径规划
+9. Day 8: 循环性和记忆性复杂结构的监督学习
+   - Mediapipe-Hand(BlazeHand/BlazePalm)论文复现
+10. Day 9: 非监督学习与生成模型
+   - Stable Diffusion复现
+11. Day 10: 强化学习
     - 强化学习训练倒立摆
-11. Day 11 to 20: 强化学习实战
+12. Day 11 to 20: 强化学习实战
     - 训练你的RoboCup机器人，调整机器人的策略，踢出最佳风采吧！
 
 
