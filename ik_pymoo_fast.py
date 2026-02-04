@@ -257,7 +257,7 @@ class RoboticRunner:
 
         self.target_theta = self.optimizer.optimize_arm(self.lengths, *self.ball_pos) # 初始计算最优关节目标角度（使用PyMOO）
 
-        # # 创建图形和坐标轴
+        # 创建图形和坐标轴
         fig, ax = plt.subplots(figsize=(10, 10))
         self.setup_axis(ax)
         self.setup_figure(fig)
@@ -273,14 +273,10 @@ class RoboticRunner:
             interval=1000/60,  # 每帧间隔（毫秒）
             blit=True  # 使用blitting优化性能
         )
+        self.ani = ani # XXX: ani对象不被调用，但是必须加入成员。否则离开__init__后会被销毁，机械臂会消失
         
         # 绑定鼠标点击事件
         fig.canvas.mpl_connect('button_press_event', self.on_click_callback)
-        
-        # 显示图形
-        plt.show()
-        
-        # 我不喜欢plt.show()显示图形，用fig.show可以指定对象
         
 # 主程序入口
 if __name__ == '__main__':
@@ -291,5 +287,4 @@ if __name__ == '__main__':
     ball_pos = [0, sum(lengths)*2/3]
 
     runner = RoboticRunner(lengths, ball_pos)
-    # runner.figure.show()
-    # plt.show() # 可惜只有这样才能阻塞式运行
+    plt.show() # FIXME: 我不喜欢plt.show()显示图形，用fig.show可以指定对象。可惜fig.show不是阻塞的
