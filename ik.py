@@ -10,6 +10,7 @@ from matplotlib.patches import Polygon, Rectangle, Circle, Arrow
 from matplotlib.widgets import Slider
 from matplotlib.animation import FuncAnimation
 
+import time
 
 def fitness(lengths, xg, yg, theta):
     """
@@ -49,6 +50,8 @@ def pso(lengths, xg, yg, num_particles=100, num_iterations=50, w=0.7, c1=1.5, c2
     返回:
         global_best_position: 全局最优解（最优关节角度）
     """
+    # T1 = time.perf_counter()
+
     num_dimensions = len(lengths)  # 优化维度 = 关节数量
     # 定义搜索空间边界：每个关节角度在[0, 2π]范围内
     bounds = np.array([[0, 2*np.pi]] * len(lengths))
@@ -96,6 +99,8 @@ def pso(lengths, xg, yg, num_particles=100, num_iterations=50, w=0.7, c1=1.5, c2
         if personal_best_scores[best_idx] < fitness(lengths, xg, yg, global_best_position.reshape(1, -1))[0]:
             global_best_position = personal_best_positions[best_idx].copy()
         
+    # T2 =time.perf_counter()
+    # print('程序运行时间:%s毫秒' % ((T2 - T1)*1000))
     return global_best_position  # 返回全局最优解
 
 

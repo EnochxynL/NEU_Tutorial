@@ -1,35 +1,15 @@
-"""
-多段机械臂粒子群优化（PSO）仿真程序 - 使用PyMOO库版本
-该程序使用PyMOO库的粒子群算法优化机械臂关节角度，使末端执行器到达目标位置
-包含交互式可视化界面，用户可点击调整目标位置
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.animation import FuncAnimation
-
-# 导入PyMOO库
-from pymoo.algorithms.soo.nonconvex.pso import PSO
-from pymoo.core.problem import Problem
-from pymoo.optimize import minimize
-from pymoo.core.sampling import Sampling
-from pymoo.core.initialization import Initialization
-from pymoo.operators.sampling.lhs import LHS
-from pymoo.operators.sampling.rnd import FloatRandomSampling
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
-from matplotlib.animation import FuncAnimation
-import time
 
 # 使用更简单的接口
 from pymoo.algorithms.soo.nonconvex.pso import PSO
 from pymoo.core.problem import ElementwiseProblem  # 使用逐元素评估，更高效
 from pymoo.optimize import minimize
+from pymoo.operators.sampling.rnd import FloatRandomSampling
 
+import time
 
 # 使用ElementwiseProblem提高效率
 class InverseKinematicsProblem(ElementwiseProblem):
@@ -91,7 +71,7 @@ class InverseKinematicsOptimizer:
 
     def optimize_arm(self, lengths, xg, yg, num_iterations=50):
         """
-        使用PyMOO库的PSO算法优化机械臂关节角度
+        使用PyMOO库的PSO算法优化机械臂关节角度。自实现的PSO使用向量化批量计算，而PyMOO使用逐元素评估，效率应该慢一些
         
         Args:
             lengths: 各段机械臂长度数组
@@ -102,6 +82,7 @@ class InverseKinematicsOptimizer:
         Returns:
             result.X: 最优关节角度数组
         """
+        # T1 = time.perf_counter()
         # 创建优化问题实例
         problem = InverseKinematicsProblem(lengths, xg, yg)
         
@@ -114,7 +95,8 @@ class InverseKinematicsOptimizer:
             verbose=False,  # 不显示优化过程
             save_history=False  # 不保存历史记录
         )
-        
+        # T2 =time.perf_counter()
+        # print('程序运行时间:%s毫秒' % ((T2 - T1)*1000))
         # 返回最优解
         return result.X
 
