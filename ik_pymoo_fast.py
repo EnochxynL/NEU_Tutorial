@@ -257,15 +257,74 @@ class RoboticRunner:
 
         self.target_theta = self.optimizer.optimize_arm(self.lengths, *self.ball_pos) # 初始计算最优关节目标角度（使用PyMOO）
 
+        # # 创建图形和坐标轴
+        # fig, ax = plt.subplots(figsize=(10, 10))
+        # self.setup_axis(ax)
+        # self.setup_figure(fig)
+
+        # self.lines, self.ball = self.initial_plot(ax, self.lengths, self.target_theta, self.ball_pos) # ball: 目标球对象 # lines: 机械臂线段对象列表
+        # self.axes = ax
+        # self.figure = fig
+
+        # # 创建动画（60FPS）
+        # ani = FuncAnimation(
+        #     fig, 
+        #     self.plot_update_callback, 
+        #     interval=1000/60,  # 每帧间隔（毫秒）
+        #     blit=True  # 使用blitting优化性能
+        # )
+        
+        # # 绑定鼠标点击事件
+        # fig.canvas.mpl_connect('button_press_event', self.on_click_callback)
+
+        
         # 创建图形和坐标轴
         fig, ax = plt.subplots(figsize=(10, 10))
-        self.setup_axis(ax)
-        self.setup_figure(fig)
+        ax.set_aspect('equal')  # 设置等比例坐标轴
+        ax.set_title('Click to change ball position (PyMOO PSO)')  # 设置标题
+        
+        # 设置坐标轴范围（比机械臂总长度稍大）
+        ax.set_xlim(-sum(lengths)*1.1, sum(lengths)*1.1)
+        ax.set_ylim(-sum(lengths)*1.1, sum(lengths)*1.1)
+        
+        # 设置背景颜色（深色主题）
+        fig.patch.set_facecolor('#110914')
+        ax.set_facecolor('#110914')
+        
+        # 设置坐标轴和文本颜色为白色
+        ax.title.set_color('white')
+        ax.tick_params(colors='white')
+        ax.spines['top'].set_color('white')
+        ax.spines['bottom'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['right'].set_color('white')
+        ax.xaxis.label.set_color('white')
+        ax.yaxis.label.set_color('white')
 
-        self.lines, self.ball = self.initial_plot(ax, self.lengths, self.target_theta, self.ball_pos) # ball: 目标球对象 # lines: 机械臂线段对象列表
+        # 绘制地面线
+        ground = ax.plot([-sum(lengths)*0.3, sum(lengths)*0.3], [0, 0], lw=1, c='white', alpha=0.5)[0]
+        
+        # 绘制初始机械臂
+        x, y = 0, 0  # 起始点
+        self.lines = []  # 存储线段对象的列表
+        for i, length in enumerate(lengths):
+            # 计算当前段末端位置
+            next_x = x + length * np.cos(self.target_theta[i])
+            next_y = y + length * np.sin(self.target_theta[i])
+            
+            # 绘制机械臂段（带关节圆点）
+            line, = ax.plot([x, next_x], [y, next_y], 'o-', lw=3, c="#caace2")
+            self.lines.append(line)
+            
+            # 更新起点为当前段末端
+            x, y = next_x, next_y
+        
+        # 绘制目标球
+        self.ball = Circle(ball_pos, 1, color="#55cd97")
+        ax.add_patch(self.ball)
+
         self.axes = ax
-        self.figure = fig
-
+        
         # 创建动画（60FPS）
         ani = FuncAnimation(
             fig, 
@@ -276,7 +335,9 @@ class RoboticRunner:
         
         # 绑定鼠标点击事件
         fig.canvas.mpl_connect('button_press_event', self.on_click_callback)
-
+        
+        # 显示图形
+        plt.show()
         
         # 我不喜欢plt.show()显示图形，用fig.show可以指定对象
         
@@ -290,4 +351,4 @@ if __name__ == '__main__':
 
     runner = RoboticRunner(lengths, ball_pos)
     # runner.figure.show()
-    plt.show() # 可惜只有这样才能阻塞式运行
+    # plt.show() # 可惜只有这样才能阻塞式运行
