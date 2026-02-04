@@ -1,5 +1,5 @@
 """
-多段机械臂粒子群优化（PSO）仿真程序
+多段机械臂粒子群优化（PSO）仿真程序，函数式编程
 该程序使用粒子群算法优化机械臂关节角度，使末端执行器到达目标位置
 包含交互式可视化界面，用户可点击调整目标位置
 """
@@ -257,7 +257,7 @@ if __name__ == '__main__':
     # 创建动画（60FPS）
     ani = FuncAnimation(
         fig, 
-        lambda f: update(f, ball, ball_pos, lines, lengths, theta, a), 
+        lambda f: update(f, ball, ball_pos, lines, lengths, theta, a), # XXX: 令人耳目一新的传递数据方式，函数式编程的特色
         interval=1000/60,  # 每帧间隔（毫秒）
         blit=True  # 使用blitting优化性能
     )

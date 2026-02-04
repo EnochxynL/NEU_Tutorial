@@ -47,6 +47,7 @@ class InverseKinematicsProblem(ElementwiseProblem):
         """
         评估回调函数——正向动力学
         逐元素评估，避免循环
+        自实现的PSO使用向量化批量计算，而PyMOO使用逐元素评估，效率应该慢一些
         """
         # 向量化计算末端位置
         x_pos = np.sum(self.lengths * np.cos(x))
@@ -71,7 +72,7 @@ class InverseKinematicsOptimizer:
 
     def optimize_arm(self, lengths, xg, yg, num_iterations=50):
         """
-        使用PyMOO库的PSO算法优化机械臂关节角度。自实现的PSO使用向量化批量计算，而PyMOO使用逐元素评估，效率应该慢一些
+        使用PyMOO库的PSO算法优化机械臂关节角度。
         
         Args:
             lengths: 各段机械臂长度数组
