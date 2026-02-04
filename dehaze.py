@@ -1,4 +1,4 @@
-import time
+import cProfile
 import cv2
 import cv2.ximgproc as xip
 import numpy as np
@@ -9,7 +9,7 @@ class Dehaze:
     def dark_channel(image_original, kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)), iterations=2):
         image_dark = np.min(image_original, axis = 2)
         image_dark = cv2.erode(image_dark, kernel, iterations=iterations)
-        image_dark = cv2.dilate(image_dark, kernel, iterations=iterations) # [x]: 算法改进
+        image_dark = cv2.dilate(image_dark, kernel, iterations=iterations) # [x]: 谢怡诺的算法改进
         return image_dark
     
     @staticmethod
@@ -60,8 +60,10 @@ class Dehaze:
         参考：https://www.cnblogs.com/Imageshop/p/3907639.html
         """
         # 1) 去色
-        # 优先使用 decolor（若不可用，退化为普通灰度）
-        gray, _ = cv2.decolor((image_bgr * 255).astype(np.uint8))
+        # 慢速去色：使用 decolor（若不可用，退化为普通灰度）
+        # gray, _ = cv2.decolor((image_bgr * 255).astype(np.uint8)) # cProfile 分析发现decolor很慢
+        # 快速去色
+        gray = cv2.cvtColor((image_bgr * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
         gray = gray.astype(np.float32) / 255.0
 
         # 2) Sobel 梯度
@@ -89,15 +91,19 @@ class Dehaze:
     @staticmethod
     def dehaze(image_atmos, image_original, t, t0 = 0.1):
         
-        image_original_o = np.zeros(np.shape(image_original))
+        # 加速版本
+        t_expanded = np.maximum(t, t0)[..., np.newaxis]
+        image_original_o = (image_original - image_atmos) / t_expanded + image_atmos
         
-        image_original_o[:, :, 0] = (image_original[:, :, 0] - image_atmos[0]) / (np.maximum(t, t0)) + image_atmos[0]
-        image_original_o[:, :, 1] = (image_original[:, :, 1] - image_atmos[1]) / (np.maximum(t, t0)) + image_atmos[1]
-        image_original_o[:, :, 2] = (image_original[:, :, 2] - image_atmos[2]) / (np.maximum(t, t0)) + image_atmos[2]
-
+        # 慢速版本
+        # image_original_o = np.zeros(np.shape(image_original))
+        # image_original_o[:, :, 0] = (image_original[:, :, 0] - image_atmos[0]) / (np.maximum(t, t0)) + image_atmos[0]
+        # image_original_o[:, :, 1] = (image_original[:, :, 1] - image_atmos[1]) / (np.maximum(t, t0)) + image_atmos[1]
+        # image_original_o[:, :, 2] = (image_original[:, :, 2] - image_atmos[2]) / (np.maximum(t, t0)) + image_atmos[2]
         return image_original_o
     
-    def __init__(self):
+    def __init__(self, use_debug=False):
+        self.use_debug=False
         self.debug = []
         # 注意类变量和实例变量的区别
 
@@ -111,11 +117,12 @@ class Dehaze:
         image_trans_filtered = self.transmission_filter(image_original, image_trans)
         image_dehazed = self.dehaze(image_atmos, image_original, image_trans_filtered)
         
-        self.debug = [cv2.subtract(image_original, cv2.cvtColor(dark_mask, cv2.COLOR_GRAY2BGR).astype(np.float32) / 255.0),
-                            image_sky_dark,
-                            image_trans_filtered,
-                            image_dehazed
-        ]
+        if self.use_debug:
+            self.debug = [cv2.subtract(image_original, cv2.cvtColor(dark_mask, cv2.COLOR_GRAY2BGR).astype(np.float32) / 255.0),
+                                image_sky_dark,
+                                image_trans_filtered,
+                                image_dehazed
+            ]
         
         return image_dehazed
 
@@ -145,12 +152,12 @@ class Main:
         return np.vstack(h_imgs)
 
     @classmethod
-    def main(cls, name: str="dehaze_4.jpg"):
+    def main(cls, name: str="dehaze_6.jpg"):
         img = cv2.imread(f"{name}").astype(np.float32) / 255.0
 
-        dehaze = Dehaze()
+        dehaze = Dehaze(use_debug=True)
         if True:
-            dehazed_img = dehaze.forward(img)
+            dehazed_img = dehaze.forward(img, omega=0.5)
             forward_debug = dehaze.debug
         del dehaze
 
@@ -160,6 +167,55 @@ class Main:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+    
+    @classmethod
+    def main_video(cls, video_source='assets/fire_output_x264.mp4'):
+        """
+        简化的视频去雾方法
+
+        Args:
+            video_source: 视频源，0为摄像头
+        """
+        cap = cv2.VideoCapture(video_source)
+        
+        if not cap.isOpened():
+            print(f"无法打开视频源: {video_source}")
+            return
+        
+        dehaze = Dehaze()
+        
+        print("开始视频去雾...")
+        print("按 'q' 退出，按 's' 保存当前帧")
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # 去雾处理
+            img = frame.astype(np.float32) / 255.0
+            dehazed_img = dehaze.forward(img)
+            # XXX: 重要，裁剪到有效范围 [0, 1] 防止颜色溢出
+            dehazed_img = np.clip(dehazed_img, 0, 1)
+            dehazed_frame = (dehazed_img * 255).astype(np.uint8)
+            
+            # 并排显示对比
+            comparison = np.hstack([frame, dehazed_frame])
+            cv2.imshow("Original vs Dehazed", comparison)
+            
+            # 键盘控制
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('s'):
+                cv2.imwrite("captured_frame.jpg", frame)
+                cv2.imwrite("dehazed_frame.jpg", dehazed_frame)
+                print("帧已保存")
+        
+        cap.release()
+        cv2.destroyAllWindows()
+
 import typer
 if __name__ == "__main__":
-    typer.run(Main.main)
+    # cProfile.run('Main.main()')
+    typer.run(Main.main_video)
