@@ -134,6 +134,65 @@ def plot_network_with_map(G, title='Road Network on Map'):
     
     return m
 
+def plot_path_with_map(G, path, title='Path on Map'):
+    """
+    在地图上显示networkx.Graph格式的特定路径
+    
+    参数:
+    G: networkx.Graph - 路网图
+    path: list - 路径节点ID列表
+    title: str - 图形标题
+    
+    返回:
+    folium.Map - 带有路径的地图实例
+    """
+    import folium
+    
+    # 检查路径是否为空
+    if not path:
+        return folium.Map(location=[-33.8688, 151.2093], zoom_start=12, title=title)
+    
+    # 计算地图中心（基于路径节点）
+    path_nodes = []
+    for node_id in path:
+        if node_id in G.nodes and 'x' in G.nodes[node_id] and 'y' in G.nodes[node_id]:
+            path_nodes.append((G.nodes[node_id]['y'], G.nodes[node_id]['x']))
+    
+    if not path_nodes:
+        return folium.Map(location=[-33.8688, 151.2093], zoom_start=12, title=title)
+    
+    # 计算中心坐标
+    lats = [coord[0] for coord in path_nodes]
+    lngs = [coord[1] for coord in path_nodes]
+    center_lat = sum(lats) / len(lats)
+    center_lng = sum(lngs) / len(lngs)
+    
+    # 创建地图实例
+    m = folium.Map(location=[center_lat, center_lng], zoom_start=13, title=title)
+    
+    # 添加路径到地图
+    folium.PolyLine(
+        path_nodes, 
+        tooltip="Path",
+        color='red',
+        weight=4,
+        opacity=0.8
+    ).add_to(m)
+    
+    # 添加路径节点标记
+    for i, (lat, lng) in enumerate(path_nodes):
+        folium.Circle(
+            location=[lat, lng],
+            radius=8,
+            color='#3186cc' if i == 0 else '#cc3131' if i == len(path_nodes) - 1 else '#31cc51',
+            fill=True,
+            fill_color='#3186cc' if i == 0 else '#cc3131' if i == len(path_nodes) - 1 else '#31cc51',
+            fill_opacity=0.6,
+            popup=f"Node {i}: ({lat:.6f}, {lng:.6f})"
+        ).add_to(m)
+    
+    return m
+
 if __name__ == '__main__':
     # 执行主程序
     shapefile_path = "assets\sydney\sydney_roads_graph.shp"
