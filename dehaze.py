@@ -103,7 +103,7 @@ class Dehaze:
         return image_original_o
     
     def __init__(self, use_debug=False):
-        self.use_debug=False
+        self.use_debug=use_debug
         self.debug = []
         # 注意类变量和实例变量的区别
 
@@ -118,6 +118,7 @@ class Dehaze:
         image_dehazed = self.dehaze(image_atmos, image_original, image_trans_filtered)
         
         if self.use_debug:
+            print('DEBUG_MODE')
             self.debug = [cv2.subtract(image_original, cv2.cvtColor(dark_mask, cv2.COLOR_GRAY2BGR).astype(np.float32) / 255.0),
                                 image_sky_dark,
                                 image_trans_filtered,
@@ -152,16 +153,18 @@ class Main:
         return np.vstack(h_imgs)
 
     @classmethod
-    def main(cls, name: str="dehaze_6.jpg"):
+    def main(cls, name: str="assets/dehaze/dehaze_1.jpg"):
         img = cv2.imread(f"{name}").astype(np.float32) / 255.0
 
         dehaze = Dehaze(use_debug=True)
         if True:
-            dehazed_img = dehaze.forward(img, omega=0.5)
+            dehazed_img = dehaze.forward(img, omega=0.8)
+            # XXX: 重要，裁剪到有效范围 [0, 1] 防止颜色溢出
+            dehazed_img = np.clip(dehazed_img, 0, 1)
             forward_debug = dehaze.debug
         del dehaze
 
-        # cv2.imwrite(f"{name}.dcp.jpg", (dehazed_img * 255).astype(np.uint8))
+        cv2.imwrite(f"{name}.dcp.jpg", (dehazed_img * 255).astype(np.uint8))
         cv2.imshow("Dehazing Process", cls.stack_images(forward_debug, cols=2))
 
         cv2.waitKey(0)
@@ -169,7 +172,7 @@ class Main:
 
     
     @classmethod
-    def main_video(cls, video_source='assets/fire_output_x264.mp4'):
+    def main_video(cls, video_source='assets/dehaze/fire_output_x264.mp4'):
         """
         简化的视频去雾方法
 
@@ -217,5 +220,6 @@ class Main:
 
 import typer
 if __name__ == "__main__":
+    Main.main()
     # cProfile.run('Main.main()')
-    typer.run(Main.main_video)
+    # typer.run(Main.main_video)

@@ -618,7 +618,7 @@ class Tracker:
 
 class TrackerTester:
     @classmethod
-    def main(cls, video_file: str='car.mp4'):
+    def main(cls, video_file: str='assets/track/track_1.mp4'):
         """Usage: python template_tracking.py <video_file> (default: car.mp4)"""
         tracker = Tracker(video_file)
         try:

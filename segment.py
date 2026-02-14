@@ -272,7 +272,7 @@ class Main:
         return np.vstack(h_imgs)
 
     @classmethod
-    def main(cls, name: str='cov_1.jpg'):
+    def main(cls, name: str='assets/segment/segment_1.jpg'):
         # 默认从当前脚本所在文件夹读取 cov_1.jpg，并输出为 lung_mask_final.png
         img = cv2.imread(name, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
         lungSegment = LungSegment()

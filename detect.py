@@ -165,7 +165,7 @@ class Main:
             print(f"Processed {fp} -> bbox={bbox} (bbox histogram saved)")
 
     @classmethod
-    def process_folder(cls, input_glob="./*.jpg", output_dir="./results"): # 或 "./images/*.png" 根据实际路径改
+    def process_folder(cls, input_glob="./assets/detect/*.jpg", output_dir="./assets/detect/results"): # 或 "./images/*.png" 根据实际路径改
         # 示例：在当前目录下处理所有 jpg/png，输出到 results 子目录
         # 在 Windows 终端中运行示例：
         # python car.py

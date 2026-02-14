@@ -216,7 +216,7 @@ if __name__ == '__main__':
     
     # 设置坐标轴范围（比机械臂总长度稍大）
     ax.set_xlim(-sum(lengths)*1.1, sum(lengths)*1.1)
-    ax.set_ylim(-sum(lengths)*1.1, sum(lengths)*1.1)
+    # ax.set_ylim(-sum(lengths)*1.1, sum(lengths)*1.1)
     
     # 设置背景颜色（深色主题）
     fig.patch.set_facecolor('#110914')

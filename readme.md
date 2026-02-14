@@ -3,6 +3,13 @@
 ## 案例分析
 
 琪露诺的编程实战特训
+
+0. Day 0: 探索
+   - 绘图可视化
+   - 命令行可视化
+   - 调试功能
+   - 传递参数
+   - 性能计时
 1. Day 1: 顺序化编程，但是心怀作用域；超参数思想
    - detect.py: 按颜色分割并进行形态学处理实现红色物体检测
 2. Day 2: 典型的管道式编程
@@ -17,19 +24,29 @@
    - dehazenet.py: DehazeNet论文复现：部署
 6. Day 6: 参数优化的管线——监督学习的训练
    - dehazenet.py: DehazeNet论文复现：训练
-8. Day 7: 美国大学生数学建模竞赛：ODE动态建模
-9. 优化算法的本质：求解器、机械臂逆运动学、反向传播、路径规划
-10. Day 8: 循环性和记忆性复杂结构的监督学习
+   - yolo11.py: YOLO的手动复现：训练与部署
+7. Day 7: 循环性和记忆性复杂结构的监督学习
    - Mediapipe-Hand(BlazeHand/BlazePalm)论文复现
-11. Day 9: 非监督学习与生成模型
-   - Stable Diffusion复现
-12. Day 10: 强化学习
+8. Day 8: 记忆性的机器学习
+   - RNN、LSTM、Transformer的复现
+9. Day 9: 非监督学习与生成模型
+   - Hopfield网络复现
+10. Day 10: 贝叶斯的机器学习
+    - 玻尔兹曼机、DBN、VAE的实现
+    - Stable Diffusion复现
+11. Day 11: 优化算法的本质：什么是求解
+    - ik.py, ik_pymoo.py: 机械臂逆运动学（反向传播的思考）
+    - astar.py: A*路径规划
+    - planner.py: 各种优化器的路径规划
+    - ik_planner.py: 机械臂路径规划
+12. Day 12: 强化学习
     - 强化学习训练PyTouhou
-13. Day 11 to 20: 强化学习实战
+13. Day 13 to 20: 强化学习实战
     - 训练你的RoboCup机器人，调整机器人的策略，踢出最佳风采吧！
 
 
-7. Day 7: 可视化与调试功能的探索
+8. Day 7: 多摆的ODE动态建模
+
 ## 完整的面向对象结构，服务于输入输出
 
 下面是一个完整的类的结构（不包括Python一些高级语法，仅满足基本输入输出需求）
