@@ -1,4 +1,5 @@
 # Mahdi Hassanzadeh
+# Modified from https://github.com/hassanzadehmahdi/Romanian-problem-using-Astar-and-GBFS
 
 import queue
 import matplotlib.pyplot as plt
@@ -73,7 +74,7 @@ class DataLoader:
 
 def BFS(startNode, graph, goalNode="Bucharest"):
     ''' Breadth First Search Algorithm '''
-    queue = []
+    queue = [] # 队列：先进先出
     queue.append(startNode)
 
     path = []
@@ -95,7 +96,7 @@ def BFS(startNode, graph, goalNode="Bucharest"):
 
 def DFS(startNode, graph, goalNode="Bucharest"):
     ''' Depth First Search Algorithm '''
-    stack = []
+    stack = [] # 栈：先进后出
     stack.append(startNode)
 
     path = []
@@ -216,11 +217,14 @@ def drawMap(city, graph, **kwpaths):
 
 def getWeightSum(path, graph):
     weightSum = 0
-    for i in range(len(path)):
-        try:
-            weightSum += int(graph[path[i]][path[i + 1]][1])
-        except:
-            continue
+    for i in range(len(path) - 1):
+        current_city = path[i]
+        next_city = path[i + 1]
+        # 在graph[current_city]中查找next_city对应的权重
+        for neighbor in graph[current_city]:
+            if neighbor[0] == next_city:
+                weightSum += int(neighbor[1])
+                break
     return weightSum
 
 # running the program
