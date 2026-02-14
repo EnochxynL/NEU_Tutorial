@@ -236,6 +236,7 @@ def main():
         dfs_path = dfs(G, start, goal)
         print(f"BFS: {get_weight_sum(G, bfs_path)} =>", bfs_path)
         print(f"DFS: {get_weight_sum(G, dfs_path)} =>", dfs_path)
+        print("如果图的构建方式不同（例如添加边的顺序不同），那么邻居节点的顺序就可能不同，从而导致遍历序列、生成树或找到的路径等结果出现差异。")
         ucs_path = ucs(G, start, goal)
         gbfs_path = gbfs(G, start, goal)
         print(f"UCS: {get_weight_sum(G, ucs_path)} =>", ucs_path)
