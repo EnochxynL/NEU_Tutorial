@@ -1,3 +1,8 @@
+# https://zhuanlan.zhihu.com/p/1919109773162423114
+# https://zhuanlan.zhihu.com/p/624429248
+# https://gitee.com/oathsign1996/shpfile-convert-to-network/
+# https://www.jianshu.com/p/fb85afadde03
+
 import os
 import geopandas as gp
 import pandas as pd
