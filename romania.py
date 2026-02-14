@@ -70,75 +70,118 @@ class DataLoader:
 
         return graph
 
-
-def UCS(startNode, graph, goalNode="Bucharest"):
-    ''' Uniform Cost Search Algorithm '''
-    priorityQueue = queue.PriorityQueue()
-    distance = 0
-    priorityQueue.put((distance, [startNode, 0]))
+def BFS(startNode, graph, goalNode="Bucharest"):
+    ''' Breadth First Search Algorithm '''
+    queue = []
+    queue.append(startNode)
 
     path = []
 
-    while priorityQueue.empty() == False:
-        current = priorityQueue.get()[1]
-        path.append(current[0])
-        distance += int(current[1])
-        
-        if current[0] == goalNode:
-            break
-
-        priorityQueue = queue.PriorityQueue()
-        
-        for i in graph[current[0]]:
-            if i[0] not in path:
-                priorityQueue.put((int(i[1]) + distance, i))
-        
-    return path
-
-def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
-    ''' Greedy Best First Search Algorithm '''
-    priorityQueue = queue.PriorityQueue()
-    priorityQueue.put((heuristics[startNode], startNode))
-
-    path = []
-
-    while priorityQueue.empty() == False:
-        current = priorityQueue.get()[1]
+    while queue:
+        current = queue.pop(0)
         path.append(current)
 
         if current == goalNode:
             break
 
-        priorityQueue = queue.PriorityQueue()
+        queue = []
 
         for i in graph[current]:
             if i[0] not in path:
-                priorityQueue.put((heuristics[i[0]], i[0]))
+                queue.append(i[0])
+
+    return path
+
+def DFS(startNode, graph, goalNode="Bucharest"):
+    ''' Depth First Search Algorithm '''
+    stack = []
+    stack.append(startNode)
+
+    path = []
+
+    while stack:
+        current = stack.pop()
+        path.append(current)
+
+        if current == goalNode:
+            break
+
+        stack = []
+
+        for i in graph[current]:
+            if i[0] not in path:
+                stack.append(i[0])
+
+    return path
+
+def UCS(startNode, graph, goalNode="Bucharest"):
+    ''' Uniform Cost Search Algorithm. Use weight. '''
+    currentSuccessor = queue.PriorityQueue()
+    weightSum = 0
+    currentSuccessor.put((weightSum, [startNode, 0]))
+
+    path = []
+
+    while currentSuccessor.empty() == False:
+        current = currentSuccessor.get()[1]
+        path.append(current[0])
+        weightSum += int(current[1])
+        
+        if current[0] == goalNode:
+            break
+
+        currentSuccessor = queue.PriorityQueue()
+        
+        for i in graph[current[0]]:
+            if i[0] not in path:
+                currentSuccessor.put((int(i[1]) + weightSum, i))
+        
+    return path
+
+def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
+    """ Greedy Best First Search Algorithm. Use heuristics. """
+    currentSuccessor = queue.PriorityQueue()
+    currentSuccessor.put((heuristics[startNode], startNode)) # 当前节点“在图之外”，初始节点作为第一个后继节点（附启发值）
+
+    path = [] # 路径记录
+
+    while currentSuccessor.empty() == False:
+        current = currentSuccessor.get()[1] # 当前节点转换为后继节点中启发值最小的节点
+        path.append(current) # 将当前节点记载进入路径
+
+        if current == goalNode:
+            break
+
+        currentSuccessor = queue.PriorityQueue() # 当前节点已转移，初始化当前节点的后继节点队列
+
+        for i in graph[current]:
+            if i[0] not in path:
+                currentSuccessor.put((heuristics[i[0]], i[0])) # 将当前节点的后继节点（附启发值）记载进入当前节点的后继节点队列
 
     return path
 
 
 def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
-    ''' Astar Algorithm '''
-    priorityQueue = queue.PriorityQueue()
-    distance = 0
-    priorityQueue.put((heuristics[startNode] + distance, [startNode, 0]))
+    ''' Astar Algorithm. Use weight + heuristics. '''
+    currentSuccessor = queue.PriorityQueue()
+    weightSum = 0
+    currentSuccessor.put((heuristics[startNode] + weightSum, [startNode, 0]))
 
     path = []
 
-    while priorityQueue.empty() == False:
-        current = priorityQueue.get()[1]
+    while currentSuccessor.empty() == False:
+        current = currentSuccessor.get()[1]
         path.append(current[0])
-        distance += int(current[1])
+        weightSum += int(current[1])
 
         if current[0] == goalNode:
             break
 
-        priorityQueue = queue.PriorityQueue()
+        currentSuccessor = queue.PriorityQueue() # 当前节点已转移，初始化当前节点的后继节点队列
 
         for i in graph[current[0]]:
             if i[0] not in path:
-                priorityQueue.put((heuristics[i[0]] + int(i[1]) + distance, i))
+                currentSuccessor.put((heuristics[i[0]] + int(i[1]) + weightSum, i)) # 将当前节点的后继节点（附启发值）记载进入当前节点的后继节点队列
 
     return path
 
@@ -188,13 +231,17 @@ def main():
 
         cityName = citiesCode[inputCode]
 
+        bfs = BFS(cityName, graph)
+        dfs = DFS(cityName, graph)
+        print("BFS => ", bfs)
+        print("DFS => ", dfs)
         ucs = UCS(cityName, graph)
         gbfs = GBFS(cityName, heuristic, graph)
-        astar = Astar(cityName, heuristic, graph)
-        print("GBFS => ", gbfs)
-        print("ASTAR => ", astar)
         print("UCS => ", ucs)
-        drawMap(city, graph, gbfs, astar, ucs)
+        print("GBFS => ", gbfs)
+        astar = Astar(cityName, heuristic, graph)
+        print("ASTAR => ", astar)
+        drawMap(city, graph, bfs, dfs, gbfs, astar, ucs)
 
 
 main()

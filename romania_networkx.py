@@ -4,12 +4,14 @@ import heapq  # 用于实现优先队列（GBFS）
 
 def load_data():
     """从文件加载数据，构建 NetworkX 图，并返回城市编号映射"""
+    DATA_PATH = "assets/romania/"
+
     G = nx.Graph()
     city_code = {}          # 编号 -> 城市名
     code = 1
 
     # 读取城市坐标
-    with open("cities.txt", "r") as f:
+    with open(DATA_PATH + "cities.txt", "r") as f:
         for line in f:
             parts = line.split()
             city = parts[0]
@@ -19,7 +21,7 @@ def load_data():
             code += 1
 
     # 读取启发式值（到 Bucharest 的估计距离）
-    with open("heuristics.txt", "r") as f:
+    with open(DATA_PATH + "heuristics.txt", "r") as f:
         for line in f:
             parts = line.split()
             city = parts[0]
@@ -27,7 +29,7 @@ def load_data():
             G.nodes[city]['heuristic'] = h
 
     # 读取边及其权重
-    with open("citiesGraph.txt", "r") as f:
+    with open(DATA_PATH + "citiesGraph.txt", "r") as f:
         for line in f:
             parts = line.split()
             u, v, w = parts[0], parts[1], int(parts[2])
