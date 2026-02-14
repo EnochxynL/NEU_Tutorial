@@ -154,10 +154,19 @@ def astar(G: nx.Graph, start, goal):
 def bfs_auto(G: nx.Graph, start, goal):
     """广度优先搜索 (BFS)（直接使用 networkx 内置函数）"""
     try:
-        # networkx 的 shortest_path 默认使用 BFS 算法
-        path = nx.shortest_path(G, start, goal)
-        return path
-    except nx.NetworkXNoPath:
+        # 使用 bfs_edges 获取 BFS 遍历的边，然后构建路径
+        edges = list(nx.bfs_edges(G, start))
+        # 构建从 start 到 goal 的路径
+        path = [start]
+        current = start
+        for u, v in edges:
+            if u == current:
+                path.append(v)
+                current = v
+                if current == goal:
+                    return path
+        return []  # 无路径
+    except Exception:
         return []
 
 
