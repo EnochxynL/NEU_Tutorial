@@ -1,0 +1,11 @@
+# https://zhuanlan.zhihu.com/p/334421409
+# https://zhuanlan.zhihu.com/p/674095744
+# https://github.com/zhm-real/PathPlanning
+# https://github.com/zhaohaojie1998/Path-Planning
+# https://github.com/scolenchris/Astar_opencv
+# https://github.com/atharvad38/Astar_algorithm_implementation
+# https://github.com/PiRrational/interactive-astar-map
+# https://github.com/tso996/opencv-bfs-astar-maze-solver
+# https://github.com/nhatuan84/astar-gui
+# https://github.com/streamer-AP/robot-plan
+# https://github.com/Xuerenbujianhua/3DPathplanning
