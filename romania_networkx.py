@@ -37,7 +37,7 @@ def load_data():
 
     return G, city_code
 
-def gbfs(G, start, goal):
+def gbfs(G: nx.Graph, start, goal):
     """贪婪最佳优先搜索 (GBFS)，返回路径列表"""
     # 优先队列元素：(启发值, 当前节点, 路径)
     # 使用 heapq，注意启发值小的优先

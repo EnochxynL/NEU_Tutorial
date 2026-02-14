@@ -2,6 +2,7 @@
 
 import queue
 import matplotlib.pyplot as plt
+import pprint
 
 class DataLoader:
     DATA_PATH = "assets/romania/"
@@ -19,7 +20,7 @@ class DataLoader:
     
     @classmethod
     def getCity(cls):
-        ''' getting cities location from file'''
+        ''' getting cities location (x, y) for plotting from file'''
         city = {}
         citiesCode = {}
         f = open(cls.DATA_PATH+"cities.txt")
@@ -160,7 +161,6 @@ def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
 
     return path
 
-
 def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
     ''' Astar Algorithm. Use weight + heuristics. '''
     currentSuccessor = queue.PriorityQueue()
@@ -187,7 +187,7 @@ def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
 
 
 # drawing map of answer
-def drawMap(city, graph, *paths):
+def drawMap(city, graph, **kwpaths):
     for i, j in city.items():
         plt.plot(j[0], j[1], "ro")
         plt.annotate(i, (j[0] + 5, j[1]))
@@ -198,26 +198,37 @@ def drawMap(city, graph, *paths):
 
     color = ["red", "green", "blue", "orange", "purple", "yellow", "cyan"]
 
-    for path in paths:
-        for i in range(len(path)):
+    for i, path in enumerate(kwpaths.values()):
+        for j in range(len(path)):
             try:
-                first = city[path[i]]
-                secend = city[path[i + 1]]
+                first = city[path[j]]
+                secend = city[path[j + 1]]
 
-                plt.plot([first[0], secend[0]], [first[1], secend[1]], color[paths.index(path)])
+                plt.plot([first[0], secend[0]], [first[1], secend[1]], color[i])
             except:
                 continue
 
-        plt.errorbar(1, 1, label=f"{paths.index(path)}", color=color[paths.index(path)])
+        plt.errorbar(1, 1, label=f"{list(kwpaths.keys())[i]}", color=color[i])
     plt.legend(loc="lower left")
 
     plt.show()
 
 
+def getWeightSum(path, graph):
+    weightSum = 0
+    for i in range(len(path)):
+        try:
+            weightSum += int(graph[path[i]][path[i + 1]][1])
+        except:
+            continue
+    return weightSum
+
 # running the program
 def main():
     heuristic = DataLoader.getHeuristics()
     graph = DataLoader.createGraph()
+    pprint.pprint(graph)
+
     city, citiesCode = DataLoader.getCity()
 
     for i, j in citiesCode.items():
@@ -233,15 +244,15 @@ def main():
 
         bfs = BFS(cityName, graph)
         dfs = DFS(cityName, graph)
-        print("BFS => ", bfs)
-        print("DFS => ", dfs)
+        print("BFS: ", getWeightSum(bfs, graph), " => ", bfs)
+        print("DFS: ", getWeightSum(dfs, graph), " => ", dfs)
         ucs = UCS(cityName, graph)
         gbfs = GBFS(cityName, heuristic, graph)
-        print("UCS => ", ucs)
-        print("GBFS => ", gbfs)
+        print("UCS: ", getWeightSum(ucs, graph), " => ", ucs)
+        print("GBFS: ", getWeightSum(gbfs, graph), " => ", gbfs)
         astar = Astar(cityName, heuristic, graph)
-        print("ASTAR => ", astar)
-        drawMap(city, graph, bfs, dfs, gbfs, astar, ucs)
+        print("ASTAR: ", getWeightSum(astar, graph), " => ", astar)
+        drawMap(city, graph, bfs=bfs, dfs=dfs, gbfs=gbfs, astar=astar, ucs=ucs)
 
 
 main()
