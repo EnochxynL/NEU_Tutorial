@@ -273,9 +273,9 @@ def main():
 
         bfs = BFS(cityName, graph)
         dfs = DFS(cityName, graph)
+        print("BFS和DFS遍历图的节点顺序可能不同，这取决于图的构建方式。")
         print("BFS: ", getWeightSum(bfs, graph), " => ", bfs)
         print("DFS: ", getWeightSum(dfs, graph), " => ", dfs)
-        print("如果图的构建方式不同（例如添加边的顺序不同），那么邻居节点的顺序就可能不同，从而导致遍历序列、生成树或找到的路径等结果出现差异。")
         ucs = UCS(cityName, graph)
         gbfs = GBFS(cityName, heuristic, graph)
         print("UCS: ", getWeightSum(ucs, graph), " => ", ucs)

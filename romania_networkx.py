@@ -151,6 +151,61 @@ def astar(G: nx.Graph, start, goal):
                 heapq.heappush(frontier, (new_cost, neighbor, path + [neighbor]))
     return []  # 无路径
 
+def bfs_auto(G: nx.Graph, start, goal):
+    """广度优先搜索 (BFS)（直接使用 networkx 内置函数）"""
+    try:
+        # networkx 的 shortest_path 默认使用 BFS 算法
+        path = nx.shortest_path(G, start, goal)
+        return path
+    except nx.NetworkXNoPath:
+        return []
+
+
+def dfs_auto(G: nx.Graph, start, goal):
+    """深度优先搜索 (DFS)（直接使用 networkx 内置函数）"""
+    try:
+        # 使用 dfs_edges 获取 DFS 遍历的边，然后构建路径
+        edges = list(nx.dfs_edges(G, start))
+        # 构建从 start 到 goal 的路径
+        path = [start]
+        current = start
+        for u, v in edges:
+            if u == current:
+                path.append(v)
+                current = v
+                if current == goal:
+                    return path
+        return []  # 无路径
+    except Exception:
+        return []
+
+
+def ucs_auto(G: nx.Graph, start, goal):
+    """统一成本搜索 (UCS)（直接使用 networkx 内置函数）"""
+    try:
+        # UCS 实际上就是带权重的 Dijkstra 算法
+        path = nx.dijkstra_path(G, start, goal, weight='weight')
+        return path
+    except nx.NetworkXNoPath:
+        return []
+
+
+def gbfs_auto(G: nx.Graph, start, goal):
+    """贪婪最佳优先搜索 (GBFS)（直接使用 networkx 内置函数）"""
+    # networkx 没有直接的 GBFS 实现，需要自定义
+    # 这里我们使用与原实现相同的逻辑，但使用 networkx 的函数
+    try:
+        # 定义启发式函数
+        def heuristic(u, v):
+            return G.nodes[u]['heuristic']
+        
+        # 使用 astar_path 但将权重设置为 0，这样就变成了 GBFS
+        path = nx.astar_path(G, start, goal, heuristic=heuristic, weight=lambda u, v, d: 0)
+        return path
+    except nx.NetworkXNoPath:
+        return []
+
+
 def astar_auto(G: nx.Graph, start, goal):
     """A* 搜索算法（直接使用 networkx 内置函数）"""
     # 定义启发式函数：返回目标节点的启发值（注意：标准A*启发式应依赖于当前节点和目标节点，
@@ -184,7 +239,7 @@ def draw_map(G, **kwpaths):
     # 绘制节点标签
     nx.draw_networkx_labels(G, pos, font_size=8)
 
-    color = ["red", "green", "blue", "orange", "purple", "yellow", "cyan"]
+    color = ["red", "green", "blue", "orange", "purple", "yellow", "cyan", "magenta", "brown", "black"]
 
     import matplotlib.lines as mlines
     path_lines = []
@@ -234,19 +289,29 @@ def main():
 
         bfs_path = bfs(G, start, goal)
         dfs_path = dfs(G, start, goal)
+        print("BFS和DFS遍历图的节点顺序可能不同，这取决于图的构建方式。")
         print(f"BFS: {get_weight_sum(G, bfs_path)} =>", bfs_path)
         print(f"DFS: {get_weight_sum(G, dfs_path)} =>", dfs_path)
-        print("如果图的构建方式不同（例如添加边的顺序不同），那么邻居节点的顺序就可能不同，从而导致遍历序列、生成树或找到的路径等结果出现差异。")
         ucs_path = ucs(G, start, goal)
         gbfs_path = gbfs(G, start, goal)
         print(f"UCS: {get_weight_sum(G, ucs_path)} =>", ucs_path)
         print(f"GBFS: {get_weight_sum(G, gbfs_path)} =>", gbfs_path)
         astar_path = astar(G, start, goal)
         print(f"A*: {get_weight_sum(G, astar_path)} =>", astar_path)
+        
+        # 测试新实现的 auto 版本
+        bfs_path_auto = bfs_auto(G, start, goal)
+        dfs_path_auto = dfs_auto(G, start, goal)
+        ucs_path_auto = ucs_auto(G, start, goal)
+        gbfs_path_auto = gbfs_auto(G, start, goal)
         astar_path_auto = astar_auto(G, start, goal)
+        print(f"BFS Auto: {get_weight_sum(G, bfs_path_auto)} =>", bfs_path_auto)
+        print(f"DFS Auto: {get_weight_sum(G, dfs_path_auto)} =>", dfs_path_auto)
+        print(f"UCS Auto: {get_weight_sum(G, ucs_path_auto)} =>", ucs_path_auto)
+        print(f"GBFS Auto: {get_weight_sum(G, gbfs_path_auto)} =>", gbfs_path_auto)
         print(f"A* Auto: {get_weight_sum(G, astar_path_auto)} =>", astar_path_auto)
 
-        draw_map(G, BFS=bfs_path, DFS=dfs_path, UCS=ucs_path, GBFS=gbfs_path, AStar=astar_path, AStarAuto=astar_path_auto)
+        draw_map(G, BFS=bfs_path, DFS=dfs_path, UCS=ucs_path, GBFS=gbfs_path, AStar=astar_path, BFS_Auto=bfs_path_auto, DFS_Auto=dfs_path_auto, UCS_Auto=ucs_path_auto, GBFS_Auto=gbfs_path_auto, AStarAuto=astar_path_auto)
 
 if __name__ == "__main__":
     main()
