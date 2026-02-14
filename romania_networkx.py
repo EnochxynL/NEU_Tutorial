@@ -1,3 +1,6 @@
+# More python graph library:
+# https://wiki.python.org/moin/PythonGraphLibraries
+
 import networkx as nx
 import matplotlib.pyplot as plt
 import heapq  # 用于实现优先队列（GBFS）

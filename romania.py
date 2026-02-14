@@ -1,5 +1,8 @@
 # Mahdi Hassanzadeh
 # Modified from https://github.com/hassanzadehmahdi/Romanian-problem-using-Astar-and-GBFS
+# Map in https://github.com/GodaKartik/RomaniaRoadMapProblem/tree/main
+# C++ code in https://www.freesion.com/article/9026181687/
+# https://cocalc.com/share/public_paths/4bc0213188739dfe3da59b3ffd6c1c82d9eff225
 
 import queue
 from collections import deque
