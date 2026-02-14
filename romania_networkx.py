@@ -243,8 +243,10 @@ def main():
         print(f"GBFS: {get_weight_sum(G, gbfs_path)} =>", gbfs_path)
         astar_path = astar(G, start, goal)
         print(f"A*: {get_weight_sum(G, astar_path)} =>", astar_path)
+        astar_path_auto = astar_auto(G, start, goal)
+        print(f"A* Auto: {get_weight_sum(G, astar_path_auto)} =>", astar_path_auto)
 
-        draw_map(G, BFS=bfs_path, DFS=dfs_path, UCS=ucs_path, GBFS=gbfs_path, AStar=astar_path)
+        draw_map(G, BFS=bfs_path, DFS=dfs_path, UCS=ucs_path, GBFS=gbfs_path, AStar=astar_path, AStarAuto=astar_path_auto)
 
 if __name__ == "__main__":
     main()
