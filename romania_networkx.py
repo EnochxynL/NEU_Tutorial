@@ -37,6 +37,74 @@ def load_data():
 
     return G, city_code
 
+def bfs(G: nx.Graph, start, goal):
+    """广度优先搜索 (BFS)，返回路径列表"""
+    # 队列元素：(当前节点, 路径)
+    # 使用 deque，注意先进先出
+    from collections import deque
+    frontier = deque([(start, [start])])
+    visited = set()
+
+    while frontier:
+        current, path = frontier.popleft()
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == goal:
+            return path
+
+        for neighbor in G.neighbors(current):
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                frontier.append((neighbor, new_path))
+    return []  # 无路径
+
+def dfs(G: nx.Graph, start, goal):
+    """深度优先搜索 (DFS)，返回路径列表"""
+    # 栈元素：(当前节点, 路径)
+    # 使用列表模拟栈，注意先进后出
+    frontier = [(start, [start])]
+    visited = set()
+
+    while frontier:
+        current, path = frontier.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == goal:
+            return path
+
+        for neighbor in G.neighbors(current):
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                frontier.append((neighbor, new_path))
+    return []  # 无路径
+
+def ucs(G: nx.Graph, start, goal):
+    """统一成本搜索 (UCS)，返回路径列表"""
+    # 优先队列元素：(累计成本, 当前节点, 路径)
+    # 使用 heapq，注意成本小的优先
+    frontier = []
+    heapq.heappush(frontier, (0, start, [start]))
+    visited = set()
+
+    while frontier:
+        cost, current, path = heapq.heappop(frontier)
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == goal:
+            return path
+
+        for neighbor, edge_data in G[current].items():
+            if neighbor not in visited:
+                new_cost = cost + edge_data['weight']
+                heapq.heappush(frontier, (new_cost, neighbor, path + [neighbor]))
+    return []  # 无路径
+
 def gbfs(G: nx.Graph, start, goal):
     """贪婪最佳优先搜索 (GBFS)，返回路径列表"""
     # 优先队列元素：(启发值, 当前节点, 路径)
@@ -60,7 +128,30 @@ def gbfs(G: nx.Graph, start, goal):
                 heapq.heappush(frontier, (G.nodes[neighbor]['heuristic'], neighbor, new_path))
     return []  # 无路径
 
-def astar(G, start, goal):
+def astar(G: nx.Graph, start, goal):
+    """A* 搜索算法（手动实现）"""
+    # 优先队列元素：(累计成本 + 启发值, 当前节点, 路径)
+    # 使用 heapq，注意成本小的优先
+    frontier = []
+    heapq.heappush(frontier, (G.nodes[start]['heuristic'], start, [start]))
+    visited = set()
+    
+    while frontier:
+        cost_h, current, path = heapq.heappop(frontier)
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == goal:
+            return path
+
+        for neighbor, edge_data in G[current].items():
+            if neighbor not in visited:
+                new_cost = cost_h - G.nodes[current]['heuristic'] + edge_data['weight'] + G.nodes[neighbor]['heuristic']
+                heapq.heappush(frontier, (new_cost, neighbor, path + [neighbor]))
+    return []  # 无路径
+
+def astar_auto(G: nx.Graph, start, goal):
     """A* 搜索算法（直接使用 networkx 内置函数）"""
     # 定义启发式函数：返回目标节点的启发值（注意：标准A*启发式应依赖于当前节点和目标节点，
     # 但原数据中启发式是到Bucharest的估计，因此这里我们假设goal固定为Bucharest，
@@ -82,8 +173,8 @@ def astar(G, start, goal):
     except nx.NetworkXNoPath:
         return []
 
-def draw_map(G, gbfs_path, astar_path):
-    """绘制地图，高亮两条路径"""
+def draw_map(G, **kwpaths):
+    """绘制地图，高亮多条路径"""
     pos = nx.get_node_attributes(G, 'pos')
 
     # 绘制所有节点（灰色）
@@ -93,24 +184,30 @@ def draw_map(G, gbfs_path, astar_path):
     # 绘制节点标签
     nx.draw_networkx_labels(G, pos, font_size=8)
 
-    # 高亮 GBFS 路径（绿色）
-    if gbfs_path:
-        gbfs_edges = list(zip(gbfs_path, gbfs_path[1:]))
-        nx.draw_networkx_edges(G, pos, edgelist=gbfs_edges, edge_color='green', width=3)
+    color = ["red", "green", "blue", "orange", "purple", "yellow", "cyan"]
 
-    # 高亮 A* 路径（蓝色）
-    if astar_path:
-        astar_edges = list(zip(astar_path, astar_path[1:]))
-        nx.draw_networkx_edges(G, pos, edgelist=astar_edges, edge_color='blue', width=3)
-
-    # 添加图例（使用代理 artist）
     import matplotlib.lines as mlines
-    green_line = mlines.Line2D([], [], color='green', label='GBFS')
-    blue_line = mlines.Line2D([], [], color='blue', label='A*')
-    plt.legend(handles=[green_line, blue_line], loc='lower left')
+    path_lines = []
+
+    for i, (label, path) in enumerate(kwpaths.items()):
+        if path:
+            edges = list(zip(path, path[1:]))
+            nx.draw_networkx_edges(G, pos, edgelist=edges, edge_color=color[i], width=3)
+            # 高亮路径节点（与边颜色相同）
+            # nx.draw_networkx_nodes(G, pos, nodelist=path, node_color=color[i], node_size=300)
+            # 高亮路径节点标签（与边颜色相同）
+            # nx.draw_networkx_labels(G, pos, labels={node: node for node in path}, font_size=8, font_color=color[i])
+            # 添加图例（使用代理 artist）
+            path_lines.append(mlines.Line2D([], [], color=color[i], label=label))
+    
+    plt.legend(handles=path_lines, loc='lower left')
 
     plt.axis('off')
     plt.show()
+
+def get_weight_sum(G: nx.Graph, path):
+    """计算路径的总权重"""
+    return sum(G[u][v]['weight'] for u, v in zip(path, path[1:]))
 
 def main():
     G, city_code = load_data()
@@ -135,13 +232,18 @@ def main():
         start = city_code[inp]
         print(f"Selected: {start}")
 
+        bfs_path = bfs(G, start, goal)
+        dfs_path = dfs(G, start, goal)
+        print(f"BFS: {get_weight_sum(G, bfs_path)} =>", bfs_path)
+        print(f"DFS: {get_weight_sum(G, dfs_path)} =>", dfs_path)
+        ucs_path = ucs(G, start, goal)
         gbfs_path = gbfs(G, start, goal)
+        print(f"UCS: {get_weight_sum(G, ucs_path)} =>", ucs_path)
+        print(f"GBFS: {get_weight_sum(G, gbfs_path)} =>", gbfs_path)
         astar_path = astar(G, start, goal)
+        print(f"A*: {get_weight_sum(G, astar_path)} =>", astar_path)
 
-        print("GBFS =>", gbfs_path)
-        print("A*   =>", astar_path)
-
-        draw_map(G, gbfs_path, astar_path)
+        draw_map(G, BFS=bfs_path, DFS=dfs_path, UCS=ucs_path, GBFS=gbfs_path, AStar=astar_path)
 
 if __name__ == "__main__":
     main()

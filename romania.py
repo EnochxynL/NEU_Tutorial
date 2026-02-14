@@ -125,7 +125,7 @@ def UCS(startNode, graph, goalNode="Bucharest"):
     path = []
 
     while currentSuccessor.empty() == False:
-        current = currentSuccessor.get()[1]
+        current = currentSuccessor.get()[1] # 当前节点转换为后继节点中权重最小的节点
         path.append(current[0])
         weightSum += int(current[1])
         
@@ -133,6 +133,7 @@ def UCS(startNode, graph, goalNode="Bucharest"):
             break
 
         currentSuccessor = queue.PriorityQueue()
+        # 错误：这意味着算法只考虑当前节点的直接邻居，而不是所有可能的路径，实际上变成了一种贪心算法，而非真正的UCS。
         
         for i in graph[current[0]]:
             if i[0] not in path:
@@ -179,6 +180,7 @@ def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
             break
 
         currentSuccessor = queue.PriorityQueue() # 当前节点已转移，初始化当前节点的后继节点队列
+        # 错误：这意味着算法只考虑当前节点的直接邻居，而不是所有可能的路径，实际上变成了一种贪心算法，而非真正的A*。
 
         for i in graph[current[0]]:
             if i[0] not in path:
