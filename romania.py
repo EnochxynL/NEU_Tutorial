@@ -2,6 +2,7 @@
 # Modified from https://github.com/hassanzadehmahdi/Romanian-problem-using-Astar-and-GBFS
 
 import queue
+from collections import deque
 import matplotlib.pyplot as plt
 import pprint
 
@@ -74,47 +75,52 @@ class DataLoader:
 
 def BFS(startNode, graph, goalNode="Bucharest"):
     ''' Breadth First Search Algorithm '''
-    queue = [] # 队列：先进先出
-    queue.append(startNode)
-
-    path = []
+    queue = deque()  # 使用deque提高效率
+    queue.append((startNode, [startNode]))  # 存储(当前节点, 路径)
+    visited = set()
 
     while queue:
-        current = queue.pop(0)
-        path.append(current)
+        current, path = queue.popleft()
+        
+        if current in visited:
+            continue
+        visited.add(current)
 
         if current == goalNode:
-            break
+            return path
 
-        queue = []
+        for neighbor_info in graph[current]:
+            neighbor = neighbor_info[0]
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                queue.append((neighbor, new_path))
 
-        for i in graph[current]:
-            if i[0] not in path:
-                queue.append(i[0])
-
-    return path
+    return []  # 无路径
 
 def DFS(startNode, graph, goalNode="Bucharest"):
     ''' Depth First Search Algorithm '''
-    stack = [] # 栈：先进后出
-    stack.append(startNode)
-
-    path = []
+    stack = []  # 栈：先进后出
+    stack.append((startNode, [startNode]))  # 存储(当前节点, 路径)
+    visited = set()
 
     while stack:
-        current = stack.pop()
-        path.append(current)
+        current, path = stack.pop()
+        
+        if current in visited:
+            continue
+        visited.add(current)
 
         if current == goalNode:
-            break
+            return path
 
-        stack = []
+        # 逆序添加邻居，确保顺序与原实现一致
+        for neighbor_info in reversed(graph[current]):
+            neighbor = neighbor_info[0]
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                stack.append((neighbor, new_path))
 
-        for i in graph[current]:
-            if i[0] not in path:
-                stack.append(i[0])
-
-    return path
+    return []  # 无路径
 
 def UCS(startNode, graph, goalNode="Bucharest"):
     ''' Uniform Cost Search Algorithm. Use weight. '''
@@ -146,24 +152,26 @@ def UCS(startNode, graph, goalNode="Bucharest"):
 def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
     """ Greedy Best First Search Algorithm. Use heuristics. """
     currentSuccessor = queue.PriorityQueue()
-    currentSuccessor.put((heuristics[startNode], startNode)) # 当前节点“在图之外”，初始节点作为第一个后继节点（附启发值）
+    currentSuccessor.put((heuristics[startNode], startNode, [startNode]))  # (启发值, 当前节点, 路径)
+    visited = set()
 
-    path = [] # 路径记录
-
-    while currentSuccessor.empty() == False:
-        current = currentSuccessor.get()[1] # 当前节点转换为后继节点中启发值最小的节点
-        path.append(current) # 将当前节点记载进入路径
+    while not currentSuccessor.empty():
+        h, current, path = currentSuccessor.get()
+        
+        if current in visited:
+            continue
+        visited.add(current)
 
         if current == goalNode:
-            break
+            return path
 
-        currentSuccessor = queue.PriorityQueue() # 当前节点已转移，初始化当前节点的后继节点队列
+        for neighbor_info in graph[current]:
+            neighbor = neighbor_info[0]
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                currentSuccessor.put((heuristics[neighbor], neighbor, new_path))
 
-        for i in graph[current]:
-            if i[0] not in path:
-                currentSuccessor.put((heuristics[i[0]], i[0])) # 将当前节点的后继节点（附启发值）记载进入当前节点的后继节点队列
-
-    return path
+    return []  # 无路径
 
 def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
     ''' Astar Algorithm. Use weight + heuristics. '''
