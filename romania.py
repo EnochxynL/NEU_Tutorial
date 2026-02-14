@@ -113,8 +113,9 @@ def DFS(startNode, graph, goalNode="Bucharest"):
         if current == goalNode:
             return path
 
-        # 逆序添加邻居，确保顺序与原实现一致
-        for neighbor_info in reversed(graph[current]):
+        # 可选：逆序添加邻居。这会导致 DFS 算法可能返回不同的路径，虽然算法逻辑都是正确的
+        # for neighbor_info in reversed(graph[current]):
+        for neighbor_info in graph[current]:
             neighbor = neighbor_info[0]
             if neighbor not in visited:
                 new_path = path + [neighbor]
