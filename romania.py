@@ -119,27 +119,29 @@ def DFS(startNode, graph, goalNode="Bucharest"):
 def UCS(startNode, graph, goalNode="Bucharest"):
     ''' Uniform Cost Search Algorithm. Use weight. '''
     currentSuccessor = queue.PriorityQueue()
-    weightSum = 0
-    currentSuccessor.put((weightSum, [startNode, 0]))
+    currentSuccessor.put((0, [startNode, 0], [startNode]))  # (累计成本, [当前节点, 边权重], 路径)
+    visited = set()
 
-    path = []
+    while not currentSuccessor.empty():
+        cost, current, path = currentSuccessor.get()
+        current_node = current[0]
+        
+        if current_node in visited:
+            continue
+        visited.add(current_node)
 
-    while currentSuccessor.empty() == False:
-        current = currentSuccessor.get()[1] # 当前节点转换为后继节点中权重最小的节点
-        path.append(current[0])
-        weightSum += int(current[1])
-        
-        if current[0] == goalNode:
-            break
-
-        currentSuccessor = queue.PriorityQueue()
-        # 错误：这意味着算法只考虑当前节点的直接邻居，而不是所有可能的路径，实际上变成了一种贪心算法，而非真正的UCS。
-        
-        for i in graph[current[0]]:
-            if i[0] not in path:
-                currentSuccessor.put((int(i[1]) + weightSum, i))
-        
-    return path
+        if current_node == goalNode:
+            return path
+        for neighbor_info in graph[current_node]:
+            neighbor = neighbor_info[0]
+            edge_weight = int(neighbor_info[1])
+            new_cost = cost + edge_weight
+            
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                currentSuccessor.put((new_cost, [neighbor, edge_weight], new_path))
+    
+    return []  # 无路径
 
 def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
     """ Greedy Best First Search Algorithm. Use heuristics. """
@@ -166,27 +168,39 @@ def GBFS(startNode, heuristics, graph, goalNode="Bucharest"):
 def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
     ''' Astar Algorithm. Use weight + heuristics. '''
     currentSuccessor = queue.PriorityQueue()
-    weightSum = 0
-    currentSuccessor.put((heuristics[startNode] + weightSum, [startNode, 0]))
+    currentSuccessor.put((heuristics[startNode], [startNode, 0], [startNode]))  # (f值, [当前节点, 边权重], 路径)
+    visited = set()
 
-    path = []
+    while not currentSuccessor.empty():
+        f_value, current, path = currentSuccessor.get()
+        current_node = current[0]
+        
+        if current_node in visited:
+            continue
+        visited.add(current_node)
+        
+        if current_node == goalNode:
+            return path
 
-    while currentSuccessor.empty() == False:
-        current = currentSuccessor.get()[1]
-        path.append(current[0])
-        weightSum += int(current[1])
+        # 计算从起点到当前节点的实际代价 g
+        g = 0
+        for i in range(len(path) - 1):
+            for neighbor in graph[path[i]]:
+                if neighbor[0] == path[i+1]:
+                    g += int(neighbor[1])
+                    break
 
-        if current[0] == goalNode:
-            break
-
-        currentSuccessor = queue.PriorityQueue() # 当前节点已转移，初始化当前节点的后继节点队列
-        # 错误：这意味着算法只考虑当前节点的直接邻居，而不是所有可能的路径，实际上变成了一种贪心算法，而非真正的A*。
-
-        for i in graph[current[0]]:
-            if i[0] not in path:
-                currentSuccessor.put((heuristics[i[0]] + int(i[1]) + weightSum, i)) # 将当前节点的后继节点（附启发值）记载进入当前节点的后继节点队列
-
-    return path
+        for neighbor_info in graph[current_node]:
+            neighbor = neighbor_info[0]
+            edge_weight = int(neighbor_info[1])
+            new_g = g + edge_weight
+            new_f = new_g + heuristics[neighbor]  # f = g + h
+            
+            if neighbor not in visited:
+                new_path = path + [neighbor]
+                currentSuccessor.put((new_f, [neighbor, edge_weight], new_path))
+    
+    return []  # 无路径
 
 
 # drawing map of answer
