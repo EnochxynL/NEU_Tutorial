@@ -8,6 +8,7 @@ import queue
 from collections import deque
 import matplotlib.pyplot as plt
 import pprint
+import random
 
 class DataLoader:
     DATA_PATH = "assets/romania/"
@@ -214,6 +215,160 @@ def Astar(startNode, heuristics, graph, goalNode="Bucharest"):
     
     return []  # 无路径
 
+def GA(startNode, graph, goalNode="Bucharest", popSize=30, maxGenerations=500, mutationProb=0.4):
+    """ Genetic Algorithm for path combinatorial optimization (different from the search algorithm given above) 
+    个体编码：长度最大由节点数 n 决定
+    若检测到路径中两连续节点无直接连接（距离为 inf），则直接将该路径的适应度设为 inf（无穷大，即惩罚）
+    变长编码：采用变长列表编码（路径长度可变，无需占位符）
+    定长 n 编码（未采用）：编码中的 0 作为占位符，当遍历路径时遇到 0 会停止计算（第 37-38 行），避免后续无效元素影响路径评估
+    https://github.com/Xuerenbujianhua/Planning
+    """
+    # 获取所有节点
+    nodes = list(graph.keys())
+    n = len(nodes)
+    node_to_index = {node: i for i, node in enumerate(nodes)}
+    index_to_node = {i: node for i, node in enumerate(nodes)}
+    
+    start_index = node_to_index[startNode]
+    goal_index = node_to_index[goalNode]
+    
+    # 构建距离矩阵
+    dist_matrix = [[float('inf') for _ in range(n)] for _ in range(n)]
+    for i in range(n):
+        dist_matrix[i][i] = 0
+        for neighbor_info in graph[index_to_node[i]]:
+            neighbor = neighbor_info[0]
+            weight = int(neighbor_info[1])
+            j = node_to_index[neighbor]
+            dist_matrix[i][j] = weight
+    
+    # 初始化种群
+    pop = []
+    for i in range(popSize):
+        # 随机生成路径
+        temp_nodes = nodes.copy()
+        temp_nodes.remove(startNode)
+        if goalNode in temp_nodes:
+            temp_nodes.remove(goalNode)
+        temp_path = random.sample(temp_nodes, random.randint(0, len(temp_nodes)))
+        pop.append([startNode] + temp_path + [goalNode])
+        
+    # 确保第一条路径是有效的（使用DFS结果）
+    dfs_path = DFS(startNode, graph, goalNode)
+    if dfs_path:
+        pop[0] = dfs_path
+    
+    best_path = []
+    best_fitness = float('inf')
+    
+    # 遗传算法迭代
+    for gen in range(maxGenerations):
+        # 评估适应度
+        fitness = []
+        valid_paths = []
+        for path in pop:
+            # 检查路径是否有效
+            valid = True
+            total_dist = 0
+            for i in range(len(path) - 1):
+                current = path[i]
+                next_node = path[i + 1]
+                found = False
+                for neighbor_info in graph[current]:
+                    if neighbor_info[0] == next_node:
+                        total_dist += int(neighbor_info[1])
+                        found = True
+                        break
+                if not found:
+                    valid = False
+                    break
+            if valid:
+                fitness.append(total_dist)
+                valid_paths.append(path)
+            else:
+                # 无效路径给予惩罚
+                fitness.append(float('inf'))
+                valid_paths.append(path)
+        
+        # 选择操作
+        sorted_indices = sorted(range(len(fitness)), key=lambda k: fitness[k])
+        parents = [valid_paths[i] for i in sorted_indices[:popSize]]
+        
+        # 交叉操作
+        new_pop = []
+        for i in range(0, popSize, 2):
+            if i + 1 < popSize:
+                parent1 = parents[i]
+                parent2 = parents[i + 1]
+                
+                if random.random() <= 0.7:  # 交叉概率
+                    # 检查路径长度是否足够进行交叉
+                    if len(parent1) > 2 and len(parent2) > 2:
+                        # 选择交叉点
+                        cross_point1 = random.randint(1, len(parent1) - 2)
+                        cross_point2 = random.randint(1, len(parent2) - 2)
+                        
+                        # 交叉操作
+                        child1 = parent1[:cross_point1] + [node for node in parent2 if node not in parent1[:cross_point1] and node not in [startNode, goalNode]] + [goalNode]
+                        child2 = parent2[:cross_point2] + [node for node in parent1 if node not in parent2[:cross_point2] and node not in [startNode, goalNode]] + [goalNode]
+                        
+                        # 确保起点和终点正确
+                        if child1[0] != startNode:
+                            child1 = [startNode] + [node for node in child1 if node != startNode and node != goalNode] + [goalNode]
+                        if child1[-1] != goalNode:
+                            child1 = [startNode] + [node for node in child1 if node != startNode and node != goalNode] + [goalNode]
+                        
+                        if child2[0] != startNode:
+                            child2 = [startNode] + [node for node in child2 if node != startNode and node != goalNode] + [goalNode]
+                        if child2[-1] != goalNode:
+                            child2 = [startNode] + [node for node in child2 if node != startNode and node != goalNode] + [goalNode]
+                        
+                        new_pop.append(child1)
+                        new_pop.append(child2)
+                    else:
+                        # 路径长度不足，直接复制父母
+                        new_pop.append(parent1)
+                        new_pop.append(parent2)
+                else:
+                    new_pop.append(parent1)
+                    new_pop.append(parent2)
+            else:
+                new_pop.append(parents[i])
+        
+        # 变异操作
+        for i in range(len(new_pop)):
+            if random.random() <= mutationProb:
+                path = new_pop[i]
+                if len(path) > 3:  # 确保有节点可以变异
+                    # 选择两个变异点
+                    mut_point1 = random.randint(1, len(path) - 2)
+                    mut_point2 = random.randint(1, len(path) - 2)
+                    
+                    # 交换节点
+                    path[mut_point1], path[mut_point2] = path[mut_point2], path[mut_point1]
+                    
+                    # 确保没有重复节点
+                    seen = set()
+                    unique_path = []
+                    for node in path:
+                        if node not in seen:
+                            seen.add(node)
+                            unique_path.append(node)
+                    if unique_path[-1] != goalNode:
+                        unique_path.append(goalNode)
+                    new_pop[i] = unique_path
+        
+        # 更新种群
+        pop = new_pop
+        
+        # 更新最佳解
+        current_best_idx = sorted_indices[0]
+        if fitness[current_best_idx] < best_fitness:
+            best_fitness = fitness[current_best_idx]
+            best_path = valid_paths[current_best_idx]
+    
+    return best_path
+
 
 # drawing map of answer
 def drawMap(city, graph, **kwpaths):
@@ -285,7 +440,9 @@ def main():
         print("GBFS: ", getWeightSum(gbfs, graph), " => ", gbfs)
         astar = Astar(cityName, heuristic, graph)
         print("ASTAR: ", getWeightSum(astar, graph), " => ", astar)
-        drawMap(city, graph, bfs=bfs, dfs=dfs, gbfs=gbfs, astar=astar, ucs=ucs)
+        ga = GA(cityName, graph)
+        print("GA: ", getWeightSum(ga, graph), " => ", ga)
+        drawMap(city, graph, bfs=bfs, dfs=dfs, gbfs=gbfs, astar=astar, ucs=ucs, ga=ga)
 
 
 main()

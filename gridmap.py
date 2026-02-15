@@ -9,3 +9,8 @@
 # https://github.com/nhatuan84/astar-gui
 # https://github.com/streamer-AP/robot-plan
 # https://github.com/Xuerenbujianhua/3DPathplanning
+# https://1keven1.github.io/2021/06/17/%E3%80%90C-%E3%80%91%E5%9F%BA%E4%BA%8EOpenCV%E7%9A%84A%E6%98%9F%E7%AE%97%E6%B3%95%E5%AE%9E%E7%8E%B0/
+# https://cloud.tencent.com/developer/article/1621193
+# https://github.com/1keven1/AStar
+# https://blog.csdn.net/Vaccae/article/details/111596213
+# https://blog.csdn.net/Yf18005429102/article/details/147902584

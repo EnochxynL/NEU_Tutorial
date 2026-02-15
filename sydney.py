@@ -3,6 +3,7 @@
 # https://gitee.com/oathsign1996/shpfile-convert-to-network/
 # https://www.jianshu.com/p/fb85afadde03
 # https://networkx.org/documentation/stable/auto_examples/geospatial/extended_description.html
+# https://osgeo.cn/pygis/others-pyshp.html
 
 import os
 import geopandas as gp
