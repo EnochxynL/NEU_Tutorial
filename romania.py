@@ -222,6 +222,9 @@ def GA(startNode, graph, goalNode="Bucharest", popSize=30, maxGenerations=500, m
     变长编码：采用变长列表编码（路径长度可变，无需占位符）
     定长 n 编码（未采用）：编码中的 0 作为占位符，当遍历路径时遇到 0 会停止计算（第 37-38 行），避免后续无效元素影响路径评估
     https://github.com/Xuerenbujianhua/Planning
+    其他相关：
+    https://tecdat.cn/%e8%a7%86%e9%a2%91%e8%ae%b2%e8%a7%a3python%e9%81%97%e4%bc%a0%e7%ae%97%e6%b3%95ga%e5%9c%a8%e8%bd%a6%e8%be%86%e8%b7%af%e5%be%84%e8%a7%84%e5%88%92vrp%e6%95%b0%e6%8d%ae%e4%bc%98%e5%8c%96%e4%b8%ad/
+    https://segmentfault.com/a/1190000047326486
     """
     # 获取所有节点
     nodes = list(graph.keys())
