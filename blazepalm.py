@@ -831,7 +831,7 @@ class BlazeRunner:
         # 提取部分关键点
         partial_indices = torch.tensor([0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 17, 18], device=device)
         partial_landmarks = torch.index_select(landmarks, 1, partial_indices)
-        
+
         def compute_rotation(partial_landmarks):
             """
             PyTorch版本的计算手部旋转角度
@@ -842,35 +842,25 @@ class BlazeRunner:
             kTargetAngle = torch.tensor(math.pi * 0.5, device=partial_landmarks.device, dtype=partial_landmarks.dtype)
             
             # 在partial_landmarks中的索引（12个点中的位置）
-            # 手腕在partial_landmarks中的索引是0
-            # 食指PIP在partial_landmarks中的索引是5（因为原始索引6对应部分索引5）
-            # 中指PIP在partial_landmarks中的索引是7（原始索引10）
-            # 无名指PIP在partial_landmarks中的索引是9（原始索引14）
-            kWristJoint = 0
-            kIndexFingerPIPJoint = 4+1
-            kMiddleFingerPIPJoint = 6+1
-            kRingFingerPIPJoint = 8+1
+            kWristJoint = 0 # 手腕在partial_landmarks中的索引是0
+            kIndexFingerPIPJoint = 4+1 # 食指PIP在partial_landmarks中的索引是5（因为原始索引6对应部分索引5）
+            kMiddleFingerPIPJoint = 6+1 # 中指PIP在partial_landmarks中的索引是7（原始索引10）
+            kRingFingerPIPJoint = 8+1 # 无名指PIP在partial_landmarks中的索引是9（原始索引14）
             
-            # 获取手腕坐标（索引0）
-            wrist = partial_landmarks[:, kWristJoint, :2]  # (batch_size, 2)
-            x0 = wrist[:, 0]  # (batch_size,)
-            y0 = wrist[:, 1]  # (batch_size,)
-            
-            # 获取食指、中指、无名指的PIP关节
+            # 获取手腕坐标（索引0），获取食指、中指、无名指的PIP关节
             # 索引：手腕:0, 食指PIP:4, 中指PIP:6, 无名指PIP:8
+            wrist = partial_landmarks[:, kWristJoint, :2]  # (batch_size, 2)
             index_pip = partial_landmarks[:, kIndexFingerPIPJoint, :2]  # (batch_size, 2)
             middle_pip = partial_landmarks[:, kMiddleFingerPIPJoint, :2]  # (batch_size, 2)
             ring_pip = partial_landmarks[:, kRingFingerPIPJoint, :2]   # (batch_size, 2)
             # 计算加权平均点（与C++代码一致）
             # x1 = (食指PIP.x + 无名指PIP.x) / 2 然后 x1 = (x1 + 中指PIP.x) / 2
-            x1 = (index_pip[:, 0] + ring_pip[:, 0]) / 2.0  # (batch_size,)
-            y1 = (index_pip[:, 1] + ring_pip[:, 1]) / 2.0  # (batch_size,)
-            x1 = (x1 + middle_pip[:, 0]) / 2.0  # (batch_size,)
-            y1 = (y1 + middle_pip[:, 1]) / 2.0  # (batch_size,)
+            p0 = wrist  # (batch_size, 2)
+            p1 = (index_pip + ring_pip + 2 * middle_pip) / 4.0  # (batch_size, 2)
             
             # 计算向量角度，atan2(-(y1 - y0), x1 - x0)
             # 注意：y取负是因为图像坐标系y向下，数学坐标系y向上
-            dx = x1 - x0; dy = y1 - y0
+            dx = p1[:, 0] - p0[:, 0]; dy = p1[:, 1] - p0[:, 1]
             rotation = kTargetAngle - torch.atan2(-dy, dx)  # (batch_size,)
             # 标准化角度到[-π, π)范围内。公式: angle - 2 * π * floor((angle - (-π)) / (2 * π))
             rotation = rotation - 2 * torch.pi * torch.floor((rotation - (-torch.pi)) / (2 * torch.pi))
@@ -881,7 +871,7 @@ class BlazeRunner:
             print(f"Error computing rotation: {e}")
             rotation = torch.zeros(batch_size, device=device, dtype=dtype)
         
-        def find_boundaries_of_landmarks(partial_landmarks):
+        def find_center_of_landmarks(partial_landmarks):
             ## 边界框计算
             # 提取坐标
             xs = partial_landmarks[:, :, 0] # * image_width
@@ -895,20 +885,20 @@ class BlazeRunner:
             axis_aligned_center_x = (max_x + min_x) / 2.0
             axis_aligned_center_y = (max_y + min_y) / 2.0
             return axis_aligned_center_x, axis_aligned_center_y
-        axis_aligned_center_x, axis_aligned_center_y = find_boundaries_of_landmarks(partial_landmarks)
+        axis_aligned_center_x, axis_aligned_center_y = find_center_of_landmarks(partial_landmarks)
 
         def find_boundaries_of_rotated_landmarks(partial_landmarks, rotation, axis_aligned_center_x, axis_aligned_center_y):
             ## 完整旋转边界框计算
-            # 计算旋转后的边界框
-            reverse_angle = -rotation  # (batch_size,)
             # 将部分关键点平移到以中心为原点
             original_x = partial_landmarks[:, :, 0] - axis_aligned_center_x.unsqueeze(1)  # (batch_size, 12)
             original_y = partial_landmarks[:, :, 1] - axis_aligned_center_y.unsqueeze(1)  # (batch_size, 12)
+            # 计算旋转后的边界框
+            reverse_angle = -rotation.unsqueeze(1)  # (batch_size,)
             # 应用反向旋转矩阵（批量处理）
-            cos_rev = torch.cos(reverse_angle)  # (batch_size,)
-            sin_rev = torch.sin(reverse_angle)  # (batch_size,)
-            projected_x = original_x * cos_rev.unsqueeze(1) - original_y * sin_rev.unsqueeze(1)  # (batch_size, 12)
-            projected_y = original_x * sin_rev.unsqueeze(1) + original_y * cos_rev.unsqueeze(1)  # (batch_size, 12)
+            cos_rev = torch.cos(reverse_angle)  # (batch_size, 1)
+            sin_rev = torch.sin(reverse_angle)  # (batch_size, 1)
+            projected_x = original_x * cos_rev - original_y * sin_rev  # (batch_size, 12)
+            projected_y = original_x * sin_rev + original_y * cos_rev  # (batch_size, 12)
             # 找到投影后的极值
             proj_max_x, _ = torch.max(projected_x, dim=1)  # (batch_size,)
             proj_max_y, _ = torch.max(projected_y, dim=1)  # (batch_size,)
@@ -925,20 +915,18 @@ class BlazeRunner:
         # mediapipe/mediapipe/modules/hand_landmark/hand_landmark_landmarks_to_roi.pbtxt
         # [mediapipe.RectTransformationCalculatorOptions.ext]
 
-        projected_center_y *= -1 # shift_y: -0.1 因此检测框上移一点
+        projected_center_y *= -4 # shift_y: -0.1 因此检测框上移一点
 
         cos_rot = torch.cos(rotation)  # (batch_size,)
         sin_rot = torch.sin(rotation)  # (batch_size,)
         # 将中心旋转回原始方向
-        center_x = (projected_center_x * cos_rot - 
-                    projected_center_y * sin_rot + 
-                    axis_aligned_center_x)  # (batch_size,)
-        center_y = (projected_center_x * sin_rot + 
-                    projected_center_y * cos_rot+ 
-                    axis_aligned_center_y)  # (batch_size,)
+        center_x = axis_aligned_center_x + (projected_center_x * cos_rot - 
+                    projected_center_y * sin_rot)  # (batch_size,)
+        center_y = axis_aligned_center_y + (projected_center_x * sin_rot + 
+                    projected_center_y * cos_rot)  # (batch_size,)
         # 计算宽度和高度
         width =  projected_width  # (batch_size,)
-        height =  projected_height  # (batch_size,)
+        height =  projected_height  # (batch_size,)，本来应该乘2
 
         xc = center_x  # (batch_size,)
         yc = center_y  # (batch_size,)
