@@ -4,21 +4,24 @@ from matplotlib.patches import Circle
 from matplotlib.animation import FuncAnimation
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 import time
 
-class InverseKinematicsPyTorch:
+class RoboticArm(nn.Module):
     """
-    使用PyTorch自动微分实现机械臂逆运动学
+    机械臂模型 - 继承自nn.Module
+    实现正向运动学计算
     """
     def __init__(self, lengths):
+        super(RoboticArm, self).__init__()
         self.lengths = torch.tensor(lengths, dtype=torch.float32)
         self.num_joints = len(lengths)
     
-    def forward_kinematics(self, theta):
+    def forward(self, theta):
         """
-        正向运动学计算
+        正向运动学计算（对应机器学习中的forward pass）
         计算给定关节角度下的末端执行器位置
         
         Args:
@@ -29,11 +32,30 @@ class InverseKinematicsPyTorch:
         """
         x, y = 0.0, 0.0
         
-        for i in range(self.num_joints):
-            x += self.lengths[i] * torch.cos(theta[i])
-            y += self.lengths[i] * torch.sin(theta[i])
+        # 逐元素计算版本
+        # for i in range(self.num_joints):
+        #     x += self.lengths[i] * torch.cos(theta[i])
+        #     y += self.lengths[i] * torch.sin(theta[i])
         
+        # 向量化计算版本
+        x = torch.sum(self.lengths * torch.cos(theta), dim=0)
+        y = torch.sum(self.lengths * torch.sin(theta), dim=0)
+
         return x, y
+
+class IKOptimizer:
+    """
+    逆运动学优化器
+    负责通过梯度下降法优化关节角度
+    """
+    def __init__(self, arm):
+        """
+        初始化优化器
+        
+        Args:
+            arm: RoboticArm实例
+        """
+        self.arm = arm
     
     def optimize(self, xg, yg, initial_theta=None, learning_rate=0.01, 
                  max_iterations=1000, tolerance=1e-4):
@@ -52,7 +74,7 @@ class InverseKinematicsPyTorch:
         """
         # 初始化关节角度
         if initial_theta is None:
-            theta = torch.rand(self.num_joints, dtype=torch.float32) * 2 * torch.pi
+            theta = torch.rand(self.arm.num_joints, dtype=torch.float32) * 2 * torch.pi
         else:
             theta = torch.tensor(initial_theta, dtype=torch.float32)
         
@@ -68,7 +90,7 @@ class InverseKinematicsPyTorch:
         # 优化循环
         for i in range(max_iterations):
             # 前向传播：计算末端位置
-            x, y = self.forward_kinematics(theta)
+            x, y = self.arm(theta)
             current_pos = torch.stack([x, y])
             
             # 计算损失函数
@@ -98,7 +120,10 @@ class RoboticRunner:
     def __init__(self, lengths, ball_pos):
         self.lengths = lengths
         self.ball_pos = ball_pos
-        self.optimizer = InverseKinematicsPyTorch(lengths)
+        
+        # 创建机械臂模型和优化器
+        self.arm = RoboticArm(lengths)
+        self.optimizer = IKOptimizer(self.arm)
         
         # 初始化参数
         self.perc = 0  # 插值百分比
