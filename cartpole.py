@@ -33,6 +33,79 @@ class Box:
         return np.all(x >= self.low) and np.all(x <= self.high)
 
 
+# ---------- CartPole 渲染器类 ----------
+class CartPoleRenderer:
+    """
+    CartPole 渲染器类，负责绘制环境状态
+    """
+    def __init__(self, env):
+        self.env = env
+        self.fig = None
+        self.ax = None
+        self.cart_rect = None
+        self.pole_line = None
+
+    def render(self, mode='human'):
+        """绘制当前状态"""
+        if self.fig is None:
+            self._init_render()
+        self._update_render()
+        plt.pause(0.001)   # 刷新图形
+
+    def _init_render(self):
+        """初始化绘图窗口和元素"""
+        plt.ion()                       # 交互模式
+        self.fig, self.ax = plt.subplots(1, 1, figsize=(6, 4))
+        self.ax.set_xlim(-3, 3)
+        self.ax.set_ylim(-1, 1.5)
+        self.ax.set_aspect('equal')
+        self.ax.grid(True, linestyle='--', alpha=0.7)
+        self.ax.set_title("CartPole")
+
+        # 小车 (矩形)
+        cart_width = 0.4
+        cart_height = 0.2
+        self.cart_rect = patches.Rectangle(
+            (-cart_width/2, -cart_height/2), cart_width, cart_height,
+            linewidth=2, edgecolor='blue', facecolor='lightblue'
+        )
+        self.ax.add_patch(self.cart_rect)
+
+        # 杆 (线段)
+        self.pole_line, = self.ax.plot([], [], 'r-', linewidth=3)
+
+        # 地面参考线
+        self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+
+        self._update_render()
+        plt.show()
+
+    def _update_render(self):
+        """更新小车和杆的位置"""
+        x, _, theta, _ = self.env.state
+
+        # 小车中心位于 (x, 0.1) 使其底部在地面 y=0 (车高0.2)
+        cart_x = x
+        cart_y = 0.1
+        self.cart_rect.set_xy((cart_x - 0.2, cart_y - 0.1))
+
+        # 杆从车顶中心 (x, 0.2) 向上延伸，总长 = 2 * length
+        pole_len = self.env.length * 2
+        pole_x = [x, x + pole_len * math.sin(theta)]
+        pole_y = [0.2, 0.2 + pole_len * math.cos(theta)]
+        self.pole_line.set_data(pole_x, pole_y)
+
+        # 刷新画布
+        self.fig.canvas.draw_idle()
+
+    def close(self):
+        """关闭图形窗口"""
+        if self.fig is not None:
+            plt.close(self.fig)
+            self.fig = None
+            self.ax = None
+
+
 # ---------- CartPole 环境类 ----------
 class CartPoleEnv:
     """
@@ -71,11 +144,8 @@ class CartPoleEnv:
         self.state = None
         self.steps_beyond_done = None   # 用于记录终止后调用的步数
 
-        # 绘图相关
-        self.fig = None
-        self.ax = None
-        self.cart_rect = None
-        self.pole_line = None
+        # 初始化渲染器
+        self.renderer = CartPoleRenderer(self)
 
     def reset(self):
         """重置环境，返回初始观测"""
@@ -133,63 +203,11 @@ class CartPoleEnv:
 
     def render(self, mode='human'):
         """绘制当前状态"""
-        if self.fig is None:
-            self._init_render()
-        self._update_render()
-        plt.pause(0.001)   # 刷新图形
-
-    def _init_render(self):
-        """初始化绘图窗口和元素"""
-        plt.ion()                       # 交互模式
-        self.fig, self.ax = plt.subplots(1, 1, figsize=(6, 4))
-        self.ax.set_xlim(-3, 3)
-        self.ax.set_ylim(-1, 1.5)
-        self.ax.set_aspect('equal')
-        self.ax.grid(True, linestyle='--', alpha=0.7)
-        self.ax.set_title("CartPole")
-
-        # 小车 (矩形)
-        cart_width = 0.4
-        cart_height = 0.2
-        self.cart_rect = patches.Rectangle(
-            (-cart_width/2, -cart_height/2), cart_width, cart_height,
-            linewidth=2, edgecolor='blue', facecolor='lightblue'
-        )
-        self.ax.add_patch(self.cart_rect)
-
-        # 杆 (线段)
-        self.pole_line, = self.ax.plot([], [], 'r-', linewidth=3)
-
-        # 地面参考线
-        self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-
-        self._update_render()
-        plt.show()
-
-    def _update_render(self):
-        """更新小车和杆的位置"""
-        x, _, theta, _ = self.state
-
-        # 小车中心位于 (x, 0.1) 使其底部在地面 y=0 (车高0.2)
-        cart_x = x
-        cart_y = 0.1
-        self.cart_rect.set_xy((cart_x - 0.2, cart_y - 0.1))
-
-        # 杆从车顶中心 (x, 0.2) 向上延伸，总长 = 2 * length
-        pole_len = self.length * 2
-        pole_x = [x, x + pole_len * math.sin(theta)]
-        pole_y = [0.2, 0.2 + pole_len * math.cos(theta)]
-        self.pole_line.set_data(pole_x, pole_y)
-
-        # 刷新画布
-        self.fig.canvas.draw_idle()
+        self.renderer.render(mode)
 
     def close(self):
         """关闭图形窗口"""
-        if self.fig is not None:
-            plt.close(self.fig)
-            self.fig = None
-            self.ax = None
+        self.renderer.close()
 
     def seed(self, seed=None):
         """设置随机种子"""
