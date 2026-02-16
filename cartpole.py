@@ -54,7 +54,6 @@ class CartPoleSimulator:
     def setup(self):
         """重置环境，返回初始观测"""
         self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,)).astype(np.float32)
-        self.steps_beyond_done = None
 
     def loop(self, action):
         """执行动作，返回 (next_obs, reward, done, info)"""
@@ -176,6 +175,7 @@ class CartPoleEnv:
     def reset(self):
         """重置环境到初始状态，返回初始观测"""
         self.simulator.setup()
+        self.steps_beyond_done = None
         return np.array(self.simulator.state, dtype=np.float32)
 
     def step(self, action):
