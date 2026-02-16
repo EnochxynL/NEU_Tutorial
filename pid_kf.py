@@ -159,71 +159,78 @@ if __name__ == '__main__':
     kf = KFilter(KFParams.f_mat, KFParams.b_mat, KFParams.q_mat, KFParams.h_mat, KFParams.r_mat)
 
     # 初始化状态变量
-    z_mat = np.asmatrix([[0.0], [0.0]])
-    x_mat = np.asmatrix([[0.0], [0.0], [0.0], [0.0]])
-    p_mat = np.asmatrix([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
+    z_mat = np.asmatrix([[0.0], [0.0]])  # 观测矩阵
+    x_mat = np.asmatrix([[0.0], [0.0], [0.0], [0.0]])  # 状态估计矩阵
+    p_mat = np.asmatrix([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])  # 协方差矩阵
 
     # 初始化记录器
     recorder = SimulationRecorder()
 
+    # 初始化仿真参数
     rewards = 0
-    state, _ = env.reset()
-    x_mat[0][0] = state[2]
-    x_mat[1][0] = state[3]
-    x_mat[2][0] = state[0]
-    x_mat[3][0] = state[1]
-    noisy_state = state
-    # print(x_mat)
-    # print(state)
-    done = False
-    i = 0
-    j = 0
+    state, _ = env.reset()  # 重置环境并获取初始状态
+    
+    # 初始化状态估计矩阵
+    x_mat[0][0] = state[2]  # 摆角
+    x_mat[1][0] = state[3]  # 摆角角速度
+    x_mat[2][0] = state[0]  # 小车位置
+    x_mat[3][0] = state[1]  # 小车速度
+    
+    noisy_state = state  # 带噪声的状态
+    done = False  # 仿真结束标志
+    i = 0  # 随机噪声计数器
+    j = 0  # 步数计数器
+    
+    # 主仿真循环
     while (j < 1000) & (abs(state[2] < 2)) & (not done):
-    # while abs(state[2] < 2):
         j = j + 1
-        env.render()
-        # control_pole = control.pid_pole(state[2])
-        # control_cart = control.pid_cart(state[0])
-        control_pole = control.pid_pole(x_mat[0, 0])
-        control_cart = control.pid_cart(x_mat[2, 0])
-        # control_pole = control.pid_pole(noisy_state[2])
-        # control_cart = control.pid_cart(noisy_state[0])
-
+        env.render()  # 渲染环境
+        
+        # 使用卡尔曼滤波估计的状态计算控制量
+        control_pole = control.pid_pole(x_mat[0, 0])  # 摆角PID控制
+        control_cart = control.pid_cart(x_mat[2, 0])  # 小车位置PID控制
+        
+        # 随机噪声注入（模拟干扰）
         if RANDOM_NOISE and random.random() > 0.99:
-            i = 2
-
+            i = 2  # 设置噪声持续时间
+        
+        # 确定控制动作
         if i > 0:
+            # 注入噪声时的动作
             if DIRECT_MAG:
                 action = 10
             else:
                 action = 1
             i -= 1
         else:
+            # 正常PID控制动作
             action = control.control_output(control_cart, control_pole)
-        # action = 0
-
+        
+        # 执行环境步进
         next_state, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
-
+        done = terminated or truncated  # 更新结束标志
+        
+        # 1. 添加噪声：为状态添加高斯噪声模拟传感器噪声
         noise = np.random.normal(loc=0, scale=0.5, size=4)
         noisy_state = next_state + noise
-        z_mat[0][0] = noisy_state[3]
-        z_mat[1][0] = noisy_state[1]
-        # x_predict = f_mat * x_mat + b_mat * action
-        # # print(x_predict)
-        # p_predict = f_mat * p_mat * f_mat.T + q_mat
-        # k_num = p_predict * h_mat.T * np.linalg.pinv(h_mat * p_predict * h_mat.T + r_mat)
-        # x_mat = x_predict + k_num * (z_mat - h_mat * x_predict)
-        # p_mat = (np.eye(4) - k_num * h_mat) * p_predict
-        # print(x_mat.T)
+        
+        # 2. 构建观测矩阵：使用带噪声的速度信号作为观测值
+        z_mat[0][0] = noisy_state[3]  # 带噪声的摆角角速度
+        z_mat[1][0] = noisy_state[1]  # 带噪声的小车速度
+        
+        # 3. 卡尔曼滤波：估计真实状态（去除噪声影响）
         x_mat, p_mat = kf.kal_filter(x_mat, p_mat, z_mat, action)
-
+        
+        # 更新状态和奖励
         state = next_state
         rewards += reward
-        # print(state)
-        # print(action)
+        
+        # 记录数据
         recorder.record_data(j, x_mat, state, noisy_state)
+    
+    # 仿真结束
     print('total rewards:'+str(rewards))
     env.close()
 
+    # 绘制结果
     recorder.plot_results()
