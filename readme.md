@@ -26,26 +26,27 @@
    - dehazenet.py: DehazeNet论文复现：训练
    - yolo11.py: YOLO的手动复现：训练与部署
 7. Day 7: 循环性和记忆性复杂结构的监督学习
-   - Mediapipe-Hand(BlazeHand/BlazePalm)论文复现
-8. Day 8: 记忆性的机器学习
+   - blazepalm.py: Mediapipe-Hand(BlazeHand/BlazePalm)论文复现
+8. Day 8: 优化算法的本质：什么是求解
+   - ik.py, ik_pymoo.py, ik_pytorch.py: 机械臂逆运动学（反向传播的思考）
+   - romania.py: A*路径规划，附带遗传算法辅助路径规划
+9. Day 9: 动态微分方程建模
+   - cartpole.py: 倒立摆的离散动态建模
+   - pendulum.py: 倒立摆的连续动态建模
+10. 经典控制与最优控制
+11. 模糊控制与概率控制
+12. Day 8: 记忆性的机器学习
    - RNN、LSTM、Transformer的复现
-9. Day 9: 非监督学习与生成模型
+13. Day 9: 非监督学习与生成模型
    - Hopfield网络复现
-10. Day 10: 贝叶斯的机器学习
+14. Day 10: 贝叶斯的机器学习
     - 玻尔兹曼机、DBN、VAE的实现
     - Stable Diffusion复现
-11. Day 11: 优化算法的本质：什么是求解
-    - ik.py, ik_pymoo.py: 机械臂逆运动学（反向传播的思考）
-    - astar.py: A*路径规划
-    - planner.py: 各种优化器的路径规划
-    - ik_planner.py: 机械臂路径规划
-12. Day 12: 强化学习
+15. Day 12: 强化学习
     - 强化学习训练PyTouhou
-13. Day 13 to 20: 强化学习实战
+16. Day 13 to 20: 强化学习实战
     - 训练你的RoboCup机器人，调整机器人的策略，踢出最佳风采吧！
 
-
-8. Day 7: 多摆的ODE动态建模
 
 ## 完整的面向对象结构，服务于输入输出
 
