@@ -114,7 +114,7 @@ class CartPoleRenderer:
         # 地面参考线
         self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
 
-        # self.loop() # FIXME: 初始化时也要更新吗？我不明白
+        # 不 loop() 因为此时状态未知。第一次调用 render() 时会先执行 setup()，随后 loop() 传入当前状态进行绘制
         plt.show()
 
     def loop(self, x, theta, half_length):
