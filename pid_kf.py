@@ -8,6 +8,55 @@ from gymnasium.envs.classic_control import *
 import matplotlib.patches as mpatches
 from dataclasses import dataclass
 
+class SimulationRecorder:
+    def __init__(self):
+        self.figure, self.ax = plt.subplots(2, 2)
+    
+    def record_data(self, step, x_mat, state, noisy_state):
+        self.ax[0][0].plot(step, x_mat[2, 0], 'ro', markersize=1)
+        self.ax[0][0].plot(step, state[0], 'go', markersize=1)
+        self.ax[0][0].plot(step, noisy_state[0], 'bo', markersize=1)
+
+        self.ax[0][1].plot(step, x_mat[3, 0], 'ro', markersize=1)
+        self.ax[0][1].plot(step, state[1], 'go', markersize=1)
+        self.ax[0][1].plot(step, noisy_state[1], 'bo', markersize=1)
+
+        self.ax[1][0].plot(step, x_mat[0, 0], 'ro', markersize=1)
+        self.ax[1][0].plot(step, state[2], 'go', markersize=1)
+        self.ax[1][0].plot(step, noisy_state[2], 'bo', markersize=1)
+
+        self.ax[1][1].plot(step, x_mat[1, 0], 'ro', markersize=1)
+        self.ax[1][1].plot(step, state[3], 'go', markersize=1)
+        self.ax[1][1].plot(step, noisy_state[3], 'bo', markersize=1)
+    
+    def plot_results(self):
+        color = ['red', 'blue', 'green']
+        labels = ['kalman filtered position', 'only use measured position', 'truth position']
+        patches = [mpatches.Patch(color=color[i], label="{:s}".format(labels[i])) for i in range(len(color))]
+
+        self.ax[0][0].set_title('x')
+        self.ax[0][0].set_xlabel('step')
+        self.ax[0][0].set_ylabel('x')
+        self.ax[0][0].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)
+
+        self.ax[0][1].set_title('x_dot')
+        self.ax[0][1].set_xlabel('step')
+        self.ax[0][1].set_ylabel('x/s')
+        self.ax[0][1].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)
+
+        self.ax[1][0].set_title('theta')
+        self.ax[1][0].set_xlabel('step')
+        self.ax[1][0].set_ylabel('rad')
+        self.ax[1][0].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)
+
+        self.ax[1][1].set_title('theta_dot')
+        self.ax[1][1].set_xlabel('step')
+        self.ax[1][1].set_ylabel('rad/s')
+        self.ax[1][1].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)
+
+        plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
+        plt.show()
+
 @dataclass
 class KFParams:
     '''卡尔曼滤波器参数'''
@@ -114,6 +163,9 @@ if __name__ == '__main__':
     x_mat = np.asmatrix([[0.0], [0.0], [0.0], [0.0]])
     p_mat = np.asmatrix([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
 
+    # 初始化记录器
+    recorder = SimulationRecorder()
+
     rewards = 0
     state, _ = env.reset()
     x_mat[0][0] = state[2]
@@ -126,7 +178,6 @@ if __name__ == '__main__':
     done = False
     i = 0
     j = 0
-    figure, ax = plt.subplots(2, 2)
     while (j < 1000) & (abs(state[2] < 2)) & (not done):
     # while abs(state[2] < 2):
         j = j + 1
@@ -171,48 +222,8 @@ if __name__ == '__main__':
         rewards += reward
         # print(state)
         # print(action)
-        ax[0][0].plot(j, x_mat[2, 0], 'ro', markersize=1)
-        ax[0][0].plot(j, state[0], 'go', markersize=1)
-        ax[0][0].plot(j, noisy_state[0], 'bo', markersize=1)
-
-        ax[0][1].plot(j, x_mat[3, 0], 'ro', markersize=1)
-        ax[0][1].plot(j, state[1], 'go', markersize=1)
-        ax[0][1].plot(j, noisy_state[1], 'bo', markersize=1)
-
-        ax[1][0].plot(j, x_mat[0, 0], 'ro', markersize=1)
-        ax[1][0].plot(j, state[2], 'go', markersize=1)
-        ax[1][0].plot(j, noisy_state[2], 'bo', markersize=1)
-
-        ax[1][1].plot(j, x_mat[1, 0], 'ro', markersize=1)
-        ax[1][1].plot(j, state[3], 'go', markersize=1)
-        ax[1][1].plot(j, noisy_state[3], 'bo', markersize=1)
+        recorder.record_data(j, x_mat, state, noisy_state)
     print('total rewards:'+str(rewards))
     env.close()
 
-    color = ['red', 'blue', 'green']
-    labels = ['kalman filtered position', 'only use measured position', 'truth position']
-    patches = [mpatches.Patch(color=color[i], label="{:s}".format(labels[i])) for i in range(len(color))]
-
-    ax[0][0].set_title('x')
-    ax[0][0].set_xlabel('step')
-    ax[0][0].set_ylabel('x')
-    ax[0][0].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)  # 生成legend
-
-    ax[0][1].set_title('x_dot')
-    ax[0][1].set_xlabel('step')
-    ax[0][1].set_ylabel('x/s')
-    ax[0][1].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)  # 生成legend
-
-    ax[1][0].set_title('theta')
-    ax[1][0].set_xlabel('step')
-    ax[1][0].set_ylabel('rad')
-    ax[1][0].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)  # 生成legend
-
-    ax[1][1].set_title('theta_dot')
-    ax[1][1].set_xlabel('step')
-    ax[1][1].set_ylabel('rad/s')
-    ax[1][1].legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)  # 生成legend
-
-    plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
-    # plt.legend(handles=patches, bbox_to_anchor=(0, 1), loc=2, borderaxespad=0)  # 生成legend
-    plt.show()
+    recorder.plot_results()
