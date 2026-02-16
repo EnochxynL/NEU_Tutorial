@@ -32,6 +32,52 @@ class Box:
     def contains(self, x):
         return np.all(x >= self.low) and np.all(x <= self.high)
 
+class CartPoleSimulator:
+    """
+    CartPole 模拟器类，负责环境状态更新
+    """
+
+    def __init__(self):
+        # 物理参数 (与 OpenAI Gym 的 CartPole-v0 一致)
+        self.gravity = 9.8
+        self.mass_cart = 1.0
+        self.mass_pole = 0.1
+        self.total_mass = self.mass_cart + self.mass_pole
+        self.half_length = 0.5          # 杆的半长 (实际长度为 1.0)
+        self.pole_mass_length = self.mass_pole * self.half_length
+        self.force_mag = 10.0
+        self.tau = 0.02             # 时间步长 (秒)
+
+        # 状态初始化
+        self.state = None
+
+    def setup(self):
+        """重置环境，返回初始观测"""
+        self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,)).astype(np.float32)
+        self.steps_beyond_done = None
+
+    def loop(self, action):
+        """执行动作，返回 (next_obs, reward, done, info)"""
+        x, x_dot, theta, theta_dot = self.state
+        force = self.force_mag if action == 1 else -self.force_mag
+
+        costheta = math.cos(theta)
+        sintheta = math.sin(theta)
+
+        # 计算加速度 (源自经典 cart-pole 方程)
+        temp = (force + self.pole_mass_length * theta_dot * theta_dot * sintheta) / self.total_mass
+        thetaacc = (self.gravity * sintheta - costheta * temp) / \
+                   (self.half_length * (4.0/3.0 - self.mass_pole * costheta * costheta / self.total_mass))
+        xacc = temp - self.pole_mass_length * thetaacc * costheta / self.total_mass
+
+        # 半隐式欧拉更新状态
+        x = x + x_dot * self.tau + 0.5 * self.tau**2 * xacc
+        x_dot = x_dot + xacc * self.tau
+        theta = theta + theta_dot * self.tau + 0.5 * self.tau**2 * thetaacc
+        theta_dot = theta_dot + thetaacc * self.tau
+
+        self.state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
+
 
 # ---------- CartPole 渲染器类 ----------
 class CartPoleRenderer:
@@ -44,7 +90,7 @@ class CartPoleRenderer:
         self.cart_rect = None
         self.pole_line = None
 
-    def _init_render(self):
+    def setup(self):
         """初始化绘图窗口和元素"""
         plt.ion()                       # 交互模式
         self.fig, self.ax = plt.subplots(1, 1, figsize=(6, 4))
@@ -69,10 +115,10 @@ class CartPoleRenderer:
         # 地面参考线
         self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
 
-        # self._update_render() # FIXME: 初始化时也要更新吗？我不明白
+        # self.loop() # FIXME: 初始化时也要更新吗？我不明白
         plt.show()
 
-    def _update_render(self, x, theta, half_length):
+    def loop(self, x, theta, half_length):
         """更新小车和杆的位置"""
 
         # 小车中心位于 (x, 0.1) 使其底部在地面 y=0 (车高0.2)
@@ -106,23 +152,12 @@ class CartPoleEnv:
     终止条件：杆倾角 > ±12° 或 车位置 > ±2.4
     """
     def __init__(self):
-        # 物理参数 (与 OpenAI Gym 的 CartPole-v0 一致)
-        self.gravity = 9.8
-        self.mass_cart = 1.0
-        self.mass_pole = 0.1
-        self.total_mass = self.mass_cart + self.mass_pole
-        self.half_length = 0.5          # 杆的半长 (实际长度为 1.0)
-        self.pole_mass_length = self.mass_pole * self.half_length
-        self.force_mag = 10.0
-        self.tau = 0.02             # 时间步长 (秒)
-
         # 角度和位置阈值
         self.theta_threshold_radians = 12 * 2 * math.pi / 360   # 12度
         self.x_threshold = 2.4
 
         # 动作空间: 0或1
         self.action_space = Discrete(2)
-
         # 观测空间: 4维，边界使用阈值放大（实际可超出，但sample时使用该边界）
         high = np.array([self.x_threshold * 2,
                          np.finfo(np.float32).max,
@@ -131,45 +166,26 @@ class CartPoleEnv:
                         dtype=np.float32)
         self.observation_space = Box(-high, high, (4,), dtype=np.float32)
 
-        # 状态初始化
-        self.state = None
         self.steps_beyond_done = None   # 用于记录终止后调用的步数
 
+        # 初始化模拟器
+        self.simulator = CartPoleSimulator()
         # 初始化渲染器
         self.renderer = CartPoleRenderer()
 
     def reset(self):
-        """重置环境，返回初始观测"""
-        self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,)).astype(np.float32)
-        self.steps_beyond_done = None
-        return np.array(self.state, dtype=np.float32)
+        """重置环境到初始状态，返回初始观测"""
+        self.simulator.setup()
+        return np.array(self.simulator.state, dtype=np.float32)
 
     def step(self, action):
-        """执行动作，返回 (next_obs, reward, done, info)"""
         # 动作合法性检查
         if not self.action_space.contains(action):
             raise ValueError(f"Invalid action {action}")
+        
+        self.simulator.loop(action)
 
-        x, x_dot, theta, theta_dot = self.state
-        force = self.force_mag if action == 1 else -self.force_mag
-
-        costheta = math.cos(theta)
-        sintheta = math.sin(theta)
-
-        # 计算加速度 (源自经典 cart-pole 方程)
-        temp = (force + self.pole_mass_length * theta_dot * theta_dot * sintheta) / self.total_mass
-        thetaacc = (self.gravity * sintheta - costheta * temp) / \
-                   (self.half_length * (4.0/3.0 - self.mass_pole * costheta * costheta / self.total_mass))
-        xacc = temp - self.pole_mass_length * thetaacc * costheta / self.total_mass
-
-        # 半隐式欧拉更新状态
-        x = x + x_dot * self.tau + 0.5 * self.tau**2 * xacc
-        x_dot = x_dot + xacc * self.tau
-        theta = theta + theta_dot * self.tau + 0.5 * self.tau**2 * thetaacc
-        theta_dot = theta_dot + thetaacc * self.tau
-
-        self.state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
-
+        x, x_dot, theta, theta_dot = self.simulator.state
         # 判断是否终止
         done = bool(
             x < -self.x_threshold
@@ -177,7 +193,6 @@ class CartPoleEnv:
             or theta < -self.theta_threshold_radians
             or theta > self.theta_threshold_radians
         )
-
         # 奖励计算 (遵循 gym 逻辑)
         if not done:
             reward = 1.0
@@ -190,13 +205,14 @@ class CartPoleEnv:
             self.steps_beyond_done += 1
             reward = 0.0
 
-        return np.array(self.state, dtype=np.float32), reward, done, {}
+        return np.array(self.simulator.state, dtype=np.float32), reward, done, {}
 
     def render(self, mode='human'):
         """绘制当前状态"""
+        x, theta = self.simulator.state[0], self.simulator.state[2]
         if self.renderer.fig is None:
-            self.renderer._init_render()
-        self.renderer._update_render(self.state[0], self.state[2], self.half_length)
+            self.renderer.setup()
+        self.renderer.loop(x, theta, self.simulator.half_length)
         plt.pause(0.001)   # 刷新图形
 
     def close(self):
