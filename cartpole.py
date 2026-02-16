@@ -38,19 +38,11 @@ class CartPoleRenderer:
     """
     CartPole 渲染器类，负责绘制环境状态
     """
-    def __init__(self, env):
-        self.env = env
+    def __init__(self):
         self.fig = None
         self.ax = None
         self.cart_rect = None
         self.pole_line = None
-
-    def render(self, mode='human'):
-        """绘制当前状态"""
-        if self.fig is None:
-            self._init_render()
-        self._update_render()
-        plt.pause(0.001)   # 刷新图形
 
     def _init_render(self):
         """初始化绘图窗口和元素"""
@@ -77,12 +69,11 @@ class CartPoleRenderer:
         # 地面参考线
         self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
 
-        self._update_render()
+        # self._update_render() # FIXME: 初始化时也要更新吗？我不明白
         plt.show()
 
-    def _update_render(self):
+    def _update_render(self, x, theta, half_length):
         """更新小车和杆的位置"""
-        x, _, theta, _ = self.env.state
 
         # 小车中心位于 (x, 0.1) 使其底部在地面 y=0 (车高0.2)
         cart_x = x
@@ -90,7 +81,7 @@ class CartPoleRenderer:
         self.cart_rect.set_xy((cart_x - 0.2, cart_y - 0.1))
 
         # 杆从车顶中心 (x, 0.2) 向上延伸，总长 = 2 * length
-        pole_len = self.env.length * 2
+        pole_len = half_length * 2
         pole_x = [x, x + pole_len * math.sin(theta)]
         pole_y = [0.2, 0.2 + pole_len * math.cos(theta)]
         self.pole_line.set_data(pole_x, pole_y)
@@ -120,8 +111,8 @@ class CartPoleEnv:
         self.mass_cart = 1.0
         self.mass_pole = 0.1
         self.total_mass = self.mass_cart + self.mass_pole
-        self.length = 0.5          # 杆的半长 (实际长度为 1.0)
-        self.pole_mass_length = self.mass_pole * self.length
+        self.half_length = 0.5          # 杆的半长 (实际长度为 1.0)
+        self.pole_mass_length = self.mass_pole * self.half_length
         self.force_mag = 10.0
         self.tau = 0.02             # 时间步长 (秒)
 
@@ -145,7 +136,7 @@ class CartPoleEnv:
         self.steps_beyond_done = None   # 用于记录终止后调用的步数
 
         # 初始化渲染器
-        self.renderer = CartPoleRenderer(self)
+        self.renderer = CartPoleRenderer()
 
     def reset(self):
         """重置环境，返回初始观测"""
@@ -168,7 +159,7 @@ class CartPoleEnv:
         # 计算加速度 (源自经典 cart-pole 方程)
         temp = (force + self.pole_mass_length * theta_dot * theta_dot * sintheta) / self.total_mass
         thetaacc = (self.gravity * sintheta - costheta * temp) / \
-                   (self.length * (4.0/3.0 - self.mass_pole * costheta * costheta / self.total_mass))
+                   (self.half_length * (4.0/3.0 - self.mass_pole * costheta * costheta / self.total_mass))
         xacc = temp - self.pole_mass_length * thetaacc * costheta / self.total_mass
 
         # 半隐式欧拉更新状态
@@ -203,7 +194,10 @@ class CartPoleEnv:
 
     def render(self, mode='human'):
         """绘制当前状态"""
-        self.renderer.render(mode)
+        if self.renderer.fig is None:
+            self.renderer._init_render()
+        self.renderer._update_render(self.state[0], self.state[2], self.half_length)
+        plt.pause(0.001)   # 刷新图形
 
     def close(self):
         """关闭图形窗口"""
