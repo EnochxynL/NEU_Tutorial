@@ -9,9 +9,6 @@ from gymnasium.envs.classic_control import *
 import matplotlib.patches as mpatches
 from dataclasses import dataclass
 
-# 定义 DIRECT_MAG 变量
-DIRECT_MAG = False # 是否直接强制使用幅值，否则使用离散二值控制
-
 class SimulationRecorder:
     def __init__(self):
         self.figure, self.ax = plt.subplots(2, 2)
@@ -104,7 +101,7 @@ class PIDParams:
     kd_pole = 100 - 5
     ki_pole = 0.005
 
-class CartPoleControl:
+class PIDController:
 
     def __init__(self, kp_cart, ki_cart, kd_cart, kp_pole, ki_pole, kd_pole):
         self.kp_cart = kp_cart
@@ -140,19 +137,15 @@ class CartPoleControl:
         return balance
 
     def control_output(self, control_cart, control_pole):
-        if DIRECT_MAG:
-            return -10*(control_pole - control_cart)
-        else:
-            return 1 if (control_pole - control_cart) < 0 else 0
+        return 1 if (control_pole - control_cart) < 0 else 0 # 符号函数，继电器特性
 
-# 系统配置
 
 env = gym.make('CartPole-v1', render_mode='human')
 
 if __name__ == '__main__':
 
     # 初始化控制器
-    control = CartPoleControl(PIDParams.kp_cart, PIDParams.ki_cart, PIDParams.kd_cart, PIDParams.kp_pole, PIDParams.ki_pole, PIDParams.kd_pole)
+    control = PIDController(PIDParams.kp_cart, PIDParams.ki_cart, PIDParams.kd_cart, PIDParams.kp_pole, PIDParams.ki_pole, PIDParams.kd_pole)
 
     # 初始化卡尔曼滤波器
     kf = KFilter(KFParams.f_mat, KFParams.b_mat, KFParams.q_mat, KFParams.h_mat, KFParams.r_mat)
