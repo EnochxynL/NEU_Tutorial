@@ -1,4 +1,5 @@
 # Inspired by https://keon.io/deep-q-learning/
+# 下一步：建模，写出系统函数和控制框图
 
 import random
 import numpy as np
@@ -7,6 +8,9 @@ import matplotlib.pyplot as plt
 from gymnasium.envs.classic_control import *
 import matplotlib.patches as mpatches
 from dataclasses import dataclass
+
+# 定义 DIRECT_MAG 变量
+DIRECT_MAG = False # 是否直接强制使用幅值，否则使用离散二值控制
 
 class SimulationRecorder:
     def __init__(self):
@@ -141,12 +145,7 @@ class CartPoleControl:
         else:
             return 1 if (control_pole - control_cart) < 0 else 0
 
-
-# 定义 DIRECT_MAG 变量
-DIRECT_MAG = False
-
 # 系统配置
-RANDOM_NOISE = False
 
 env = gym.make('CartPole-v1', render_mode='human')
 
@@ -179,54 +178,39 @@ if __name__ == '__main__':
     noisy_state = state  # 带噪声的状态
     done = False  # 仿真结束标志
     i = 0  # 随机噪声计数器
-    j = 0  # 步数计数器
+    step_index = 0  # 步数计数器
     
     # 主仿真循环
-    while (j < 1000) & (abs(state[2] < 2)) & (not done):
-        j = j + 1
+    while (step_index < 1000) & (abs(state[2] < 2)) & (not done):
+        step_index = step_index + 1
         env.render()  # 渲染环境
         
+        ## ACTION
         # 使用卡尔曼滤波估计的状态计算控制量
         control_pole = control.pid_pole(x_mat[0, 0])  # 摆角PID控制
         control_cart = control.pid_cart(x_mat[2, 0])  # 小车位置PID控制
-        
-        # 随机噪声注入（模拟干扰）
-        if RANDOM_NOISE and random.random() > 0.99:
-            i = 2  # 设置噪声持续时间
-        
-        # 确定控制动作
-        if i > 0:
-            # 注入噪声时的动作
-            if DIRECT_MAG:
-                action = 10
-            else:
-                action = 1
-            i -= 1
-        else:
-            # 正常PID控制动作
-            action = control.control_output(control_cart, control_pole)
+        # 确定PID控制动作
+        action = control.control_output(control_cart, control_pole)
         
         # 执行环境步进
         next_state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated  # 更新结束标志
         
+        ## OBSERVATION
         # 1. 添加噪声：为状态添加高斯噪声模拟传感器噪声
-        noise = np.random.normal(loc=0, scale=0.5, size=4)
-        noisy_state = next_state + noise
-        
+        noisy_state = next_state # + np.random.normal(loc=0, scale=0.5, size=4) # [ ]: 选择是否加入噪声
         # 2. 构建观测矩阵：使用带噪声的速度信号作为观测值
         z_mat[0][0] = noisy_state[3]  # 带噪声的摆角角速度
         z_mat[1][0] = noisy_state[1]  # 带噪声的小车速度
-        
         # 3. 卡尔曼滤波：估计真实状态（去除噪声影响）
         x_mat, p_mat = kf.kal_filter(x_mat, p_mat, z_mat, action)
         
+        ## RECORD
         # 更新状态和奖励
         state = next_state
         rewards += reward
-        
         # 记录数据
-        recorder.record_data(j, x_mat, state, noisy_state)
+        recorder.record_data(step_index, x_mat, state, noisy_state)
     
     # 仿真结束
     print('total rewards:'+str(rewards))
