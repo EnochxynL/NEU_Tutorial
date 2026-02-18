@@ -65,24 +65,10 @@ class CartPoleSimulator:
         l = self.half_length
         M_total = M + m
         
-        # 状态空间矩阵
-        A = np.array([
-            [0, 1, 0, 0],
-            [0, 0, (m*g*l)/M_total, 0],
-            [0, 0, 0, 1],
-            [0, 0, (g*M)/(l*M_total), 0]
-        ])
-        
-        B = np.array([
-            [0],
-            [1/M_total],
-            [0],
-            [-1/(l*M_total)]
-        ])
-        
         # 计算离散时间状态空间矩阵（零阶保持器）
         # A_d = e^(A*T)
         # B_d = (∫₀^T e^(A*τ) dτ) * B
+        # T = 1
         T = self.tau
         
         # 计算矩阵指数 A_d
