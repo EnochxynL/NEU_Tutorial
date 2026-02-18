@@ -15,6 +15,7 @@ class PIDController:
     # 可以使用MATLAB的Control System Designer确定PID参数
     # https://ethanr2000.medium.com/using-pid-to-cheat-an-openai-challenge-f17745226449
     # https://zhuanlan.zhihu.com/p/118543118
+    # https://zhuanlan.zhihu.com/p/137231989
 
     def __init__(self):
         self.integral = 0
@@ -32,32 +33,34 @@ class PIDController:
         self.prev_error = error
         return self.P * error + self.I * self.integral + self.D * self.derivative
 
-env = gym.make("CartPole-v1", render_mode="human")
-desired_state = np.array([0, 0, 0, 0])
-desired_mask = np.array([0, 0, 1, 0])
 
-N_episodes = 10
-N_steps = 50000
+def main(N_episodes=10, N_steps=50000):
+    env = gym.make("CartPole-v1", render_mode="human")
+    pid_controller = PIDController()
 
-pid_controller = PIDController()
+    desired_state = np.array([0, 0, 0, 0])
+    desired_mask = np.array([0, 0, 1, 0])
 
-for i_episode in range(N_episodes):
-    state, _ = env.reset()
-    pid_controller.setup()
+    for i_episode in range(N_episodes):
+        state, _ = env.reset()
+        pid_controller.setup()
+        
+        for t in range(N_steps):
+            # print(f"step: {t}")
+            env.render()
+            error = state - desired_state
+            # pid = pid_controller.loop(error)[2] # 只使用theta的PID输出
+            pid = np.dot(pid_controller.loop(error), desired_mask) # 最后只使用theta的PID输出
+            # def sigmoid(x): return 1.0 / (1.0 + np.exp(-x))
+            # action = np.round(sigmoid(pid)).astype(np.int32)
+            action = 1 if pid > 0 else 0 # 继电器特性输出
+            print(state, action, pid)
     
-    for t in range(N_steps):
-        # print(f"step: {t}")
-        env.render()
-        error = state - desired_state
-        # pid = pid_controller.loop(error)[2] # 只使用theta的PID输出
-        pid = np.dot(pid_controller.loop(error), desired_mask) # 最后只使用theta的PID输出
-        # def sigmoid(x): return 1.0 / (1.0 + np.exp(-x))
-        # action = np.round(sigmoid(pid)).astype(np.int32)
-        action = 1 if pid > 0 else 0 # 继电器特性输出
-        print(state, action, pid)
- 
-        state, reward, done, info, _ = env.step(action)
-        if done or t==N_steps-1:
-            print("Episode finished after {} timesteps".format(t+1))
-            break
-env.close()
+            state, reward, done, info, _ = env.step(action)
+            if done or t==N_steps-1:
+                print("Episode finished after {} timesteps".format(t+1))
+                break
+    env.close()
+
+if __name__ == "__main__":
+    main()

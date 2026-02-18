@@ -1,5 +1,5 @@
+# https://github.com/Versemongerr/Kalman_PID_Cartpole
 # Inspired by https://keon.io/deep-q-learning/
-# 下一步：建模，写出系统函数和控制框图
 
 import random
 import numpy as np
