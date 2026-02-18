@@ -4,7 +4,6 @@ import matplotlib.patches as patches
 import math
 from types import ModuleType
 import sys
-import control as ctrl
 
 # ---------- 自定义空间类，模拟 gym.spaces ----------
 class Discrete:
@@ -81,21 +80,30 @@ class CartPoleSimulator:
             [-1/(l*M_total)]
         ])
         
-        C = np.array([
-            [1, 0, 0, 0],  # 输出 x
-            [0, 0, 1, 0]   # 输出 theta
+        # 计算离散时间状态空间矩阵（零阶保持器）
+        # A_d = e^(A*T)
+        # B_d = (∫₀^T e^(A*τ) dτ) * B
+        T = self.tau
+        
+        # 计算矩阵指数 A_d
+        A_d = np.array([
+            [1, T, 0, 0],
+            [0, 1, (m*g*l*T)/M_total, 0],
+            [0, 0, 1, T],
+            [0, 0, (g*M*T)/(l*M_total), 1]
         ])
         
-        D = np.array([
+        # 计算 B_d（对于线性时不变系统，简化计算）
+        B_d = np.array([
             [0],
-            [0]
+            [T/M_total],
+            [0],
+            [-T/(l*M_total)]
         ])
         
-        # 创建状态空间模型
-        self.ss_model = ctrl.StateSpace(A, B, C, D)
-        
-        # 转换为离散时间模型
-        self.dt_ss_model = ctrl.c2d(self.ss_model, self.tau)
+        # 存储离散时间模型参数
+        self.A_d = A_d
+        self.B_d = B_d
 
     def setup(self):
         """重置环境，返回初始观测"""
@@ -107,12 +115,12 @@ class CartPoleSimulator:
         force = self.force_mag if action == 1 else -self.force_mag
         
         # 直接使用离散时间状态空间模型的状态转移方程
-        # x(k+1) = A*x(k) + B*u(k)
+        # x(k+1) = A_d*x(k) + B_d*u(k)
         x_vec = self.state.reshape(-1, 1)
         u_vec = np.array([force]).reshape(-1, 1)
         
         # 计算下一个状态
-        x_next = self.dt_ss_model.A @ x_vec + self.dt_ss_model.B @ u_vec
+        x_next = self.A_d @ x_vec + self.B_d @ u_vec
         
         # 更新状态
         self.state = x_next.flatten().astype(np.float32)
