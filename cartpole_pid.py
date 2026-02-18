@@ -37,9 +37,6 @@ class PIDController:
         self.prev_error = error
         return self.P * error + self.I * self.integral + self.D * self.derivative
 
-class PIDTrainer:
-    pass
-
 def main(N_episodes=10, N_steps=50000):
     env = gym.make("CartPole-v1", render_mode="human")
     pid_controller = PIDController()
