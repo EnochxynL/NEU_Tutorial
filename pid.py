@@ -10,14 +10,18 @@ class PIDController:
     [x, x_dot, theta, theta_dot]'''
     
     # P, I, D = 0.1, 0.01, 0.5  ###
-    P, I, D = [1/150, 1/950, 0.1, 0.01], [0.0005, 0.001, 0.01, 0.0001], [0.2, 0.0001, 0.5, 0.005]
-    # 计算出线性近似系统的传递函数
+    # P, I, D = [1/150, 1/950, 0.1, 0.01], [0.0005, 0.001, 0.01, 0.0001], [0.2, 0.0001, 0.5, 0.005]
+    # 计算出线性近似系统的传递函数后
     # 可以使用MATLAB的Control System Designer确定PID参数
     # https://ethanr2000.medium.com/using-pid-to-cheat-an-openai-challenge-f17745226449
     # https://zhuanlan.zhihu.com/p/118543118
     # https://zhuanlan.zhihu.com/p/137231989
+    # https://blog.csdn.net/qq_42249050/article/details/117749030
 
-    def __init__(self):
+    def __init__(self, P=None, I=None, D=None):
+        self.P = P if P is not None else [1/150, 1/950, 0.1, 0.01]
+        self.I = I if I is not None else [0.0005, 0.001, 0.01, 0.0001]
+        self.D = D if D is not None else [0.2, 0.0001, 0.5, 0.005]
         self.integral = 0
         self.derivative = 0
         self.prev_error = 0
@@ -33,6 +37,8 @@ class PIDController:
         self.prev_error = error
         return self.P * error + self.I * self.integral + self.D * self.derivative
 
+class PIDTrainer:
+    pass
 
 def main(N_episodes=10, N_steps=50000):
     env = gym.make("CartPole-v1", render_mode="human")
