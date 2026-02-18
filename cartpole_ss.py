@@ -54,12 +54,29 @@ class CartPoleSimulator:
         self.state = None
         
         # 初始化状态空间模型
-        A_d, B_d = self.get_state_space_matrix(self.tau)
+        A_d, B_d = self.get_discrete_ss(self.tau)
         self.A_d = A_d
         self.B_d = B_d
-
-    def get_state_space_matrix(self, T=1):
-        """初始化状态空间模型"""
+    
+    def get_continuous_ss(self):
+        g = self.gravity
+        M = self.mass_cart
+        m = self.mass_pole
+        l = self.half_length
+        M_total = M + m
+        # 连续状态矩阵
+        A_c = np.array([
+            [0, 1, 0, 0],
+            [0, 0, -m*g/M, 0],
+            [0, 0, 0, 1],
+            [0, 0, (M_total)*g/(M*l), 0]
+        ])
+        B_c = np.array([[0], [1/M], [0], [-1/(M*l)]])
+        return A_c, B_c
+    
+    def get_discrete_ss(self, T=1):
+        """获得近似的离散状态空间模型（一阶欧拉近似）
+        建议弃用或修改为精确离散化方法（如使用 scipy.linalg.expm 手动计算矩阵指数）"""
         # 物理参数
         g = self.gravity
         M = self.mass_cart
@@ -71,7 +88,7 @@ class CartPoleSimulator:
         # A_d = e^(A*T)
         # B_d = (∫₀^T e^(A*τ) dτ) * B
         
-        # 计算矩阵指数 A_d
+        # 一阶欧拉近似计算矩阵指数 A_d
         A = np.array([
             [1, T, 0, 0],
             [0, 1, (m*g*l*T)/M_total, 0],
@@ -89,24 +106,25 @@ class CartPoleSimulator:
         
         return A, B
     
-    def get_laplace_function(self):
+    def get_continuous_tf(self):
         """返回状态空间模型的传递函数"""
         import control as ctrl
-        A, B = self.get_state_space_matrix()
+        A, B = self.get_continuous_ss()
         # 创建状态空间系统
         sys_c = ctrl.ss(A, B, np.eye(4), np.zeros((4, 1)))
         # 转换为传递函数
         tf_c = ctrl.tf(sys_c)
         return tf_c
     
-    def get_z_function(self):
-        """返回状态空间模型的零输入响应"""
+    def get_discrete_tf(self):
         import control as ctrl
-        A, B = self.get_state_space_matrix()
-        # 创建状态空间系统
-        sys_c = ctrl.ss(A, B, np.eye(4), np.zeros((4, 1)))
-        sys_d = ctrl.c2d(sys_c, self.tau)
-        # 转换为传递函数
+        # 获取正确的连续矩阵
+        A_c, B_c = self.get_continuous_ss()
+        # 构建连续系统
+        sys_c = ctrl.ss(A_c, B_c, np.eye(4), np.zeros((4, 1)))
+        # 精确离散化（零阶保持器）
+        sys_d = ctrl.c2d(sys_c, self.tau, method='zoh')
+        # 返回传递函数形式
         tf_d = ctrl.tf(sys_d)
         return tf_d
 
@@ -296,10 +314,10 @@ if __name__ == '__main__':
 
     env = gym.make('CartPole-v0')
 
-    sys_l = env.simulator.get_laplace_function()
-    print(sys_l)
-    sys_z = env.simulator.get_z_function()
-    print(sys_z)
+    sys_c = env.simulator.get_continuous_tf()
+    print(sys_c)
+    sys_d = env.simulator.get_discrete_tf()
+    print(sys_d)
 
     env.reset()
     for _ in range(1000):
