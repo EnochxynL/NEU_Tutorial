@@ -111,6 +111,15 @@ class CartPoleSimulator:
         # 更新状态
         self.state = x_next.flatten().astype(np.float32)
 
+    # 获取传递函数
+    def get_transition_function(self):
+        """返回状态空间模型的传递函数"""
+        import control as ctrl
+        # 创建离散时间状态空间系统
+        sys_d = ctrl.ss(self.A_d, self.B_d, np.eye(4), np.zeros((4, 1)))
+        # 转换为传递函数
+        tf_d = ctrl.tf(sys_d)
+        return tf_d
 
 # ---------- CartPole 渲染器类 ----------
 class CartPoleRenderer:
@@ -277,6 +286,10 @@ if __name__ == '__main__':
     import gym
 
     env = gym.make('CartPole-v0')
+
+    sys_d = env.simulator.get_transition_function()
+    print(sys_d)
+    
     env.reset()
     for _ in range(1000):
         env.render()
