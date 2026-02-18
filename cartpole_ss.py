@@ -89,7 +89,7 @@ class CartPoleSimulator:
         
         return A, B
     
-    def get_transition_function(self):
+    def get_laplace_function(self):
         """返回状态空间模型的传递函数"""
         import control as ctrl
         A, B = self.get_state_space_matrix()
@@ -99,6 +99,17 @@ class CartPoleSimulator:
         tf_c = ctrl.tf(sys_c)
         return tf_c
     
+    def get_z_function(self):
+        """返回状态空间模型的零输入响应"""
+        import control as ctrl
+        A, B = self.get_state_space_matrix()
+        # 创建状态空间系统
+        sys_c = ctrl.ss(A, B, np.eye(4), np.zeros((4, 1)))
+        sys_d = ctrl.c2d(sys_c, self.tau)
+        # 转换为传递函数
+        tf_d = ctrl.tf(sys_d)
+        return tf_d
+
     def setup(self):
         """重置环境，返回初始观测"""
         self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,)).astype(np.float32)
@@ -285,8 +296,10 @@ if __name__ == '__main__':
 
     env = gym.make('CartPole-v0')
 
-    sys_d = env.simulator.get_transition_function()
-    print(sys_d)
+    sys_l = env.simulator.get_laplace_function()
+    print(sys_l)
+    sys_z = env.simulator.get_z_function()
+    print(sys_z)
 
     env.reset()
     for _ in range(1000):
