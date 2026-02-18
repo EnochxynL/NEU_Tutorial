@@ -11,7 +11,11 @@ class PIDController:
     
     # P, I, D = 0.1, 0.01, 0.5  ###
     P, I, D = [1/150, 1/950, 0.1, 0.01], [0.0005, 0.001, 0.01, 0.0001], [0.2, 0.0001, 0.5, 0.005]
-    
+    # 计算出线性近似系统的传递函数
+    # 可以使用MATLAB的Control System Designer确定PID参数
+    # https://ethanr2000.medium.com/using-pid-to-cheat-an-openai-challenge-f17745226449
+    # https://zhuanlan.zhihu.com/p/118543118
+
     def __init__(self):
         self.integral = 0
         self.derivative = 0
