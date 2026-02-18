@@ -191,7 +191,7 @@ if __name__ == '__main__':
         
         ## OBSERVATION
         # 1. 添加噪声：为状态添加高斯噪声模拟传感器噪声
-        noisy_state = next_state # + np.random.normal(loc=0, scale=0.5, size=4) # [ ]: 选择是否加入噪声
+        noisy_state = next_state + np.random.normal(loc=0, scale=0.5, size=4) # [ ]: 选择是否加入噪声
         # 2. 构建观测矩阵：使用带噪声的速度信号作为观测值
         z_mat[0][0] = noisy_state[3]  # 带噪声的摆角角速度
         z_mat[1][0] = noisy_state[1]  # 带噪声的小车速度
