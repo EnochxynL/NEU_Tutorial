@@ -54,9 +54,11 @@ class CartPoleSimulator:
         self.state = None
         
         # 初始化状态空间模型
-        self._init_state_space_model()
+        A_d, B_d = self.get_state_space_matrix(self.tau)
+        self.A_d = A_d
+        self.B_d = B_d
 
-    def _init_state_space_model(self):
+    def get_state_space_matrix(self, T=1):
         """初始化状态空间模型"""
         # 物理参数
         g = self.gravity
@@ -68,11 +70,9 @@ class CartPoleSimulator:
         # 计算离散时间状态空间矩阵（零阶保持器）
         # A_d = e^(A*T)
         # B_d = (∫₀^T e^(A*τ) dτ) * B
-        # T = 1
-        T = self.tau
         
         # 计算矩阵指数 A_d
-        A_d = np.array([
+        A = np.array([
             [1, T, 0, 0],
             [0, 1, (m*g*l*T)/M_total, 0],
             [0, 0, 1, T],
@@ -80,17 +80,25 @@ class CartPoleSimulator:
         ])
         
         # 计算 B_d（对于线性时不变系统，简化计算）
-        B_d = np.array([
+        B = np.array([
             [0],
             [T/M_total],
             [0],
             [-T/(l*M_total)]
         ])
         
-        # 存储离散时间模型参数
-        self.A_d = A_d
-        self.B_d = B_d
-
+        return A, B
+    
+    def get_transition_function(self):
+        """返回状态空间模型的传递函数"""
+        import control as ctrl
+        A, B = self.get_state_space_matrix()
+        # 创建状态空间系统
+        sys_c = ctrl.ss(A, B, np.eye(4), np.zeros((4, 1)))
+        # 转换为传递函数
+        tf_c = ctrl.tf(sys_c)
+        return tf_c
+    
     def setup(self):
         """重置环境，返回初始观测"""
         self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,)).astype(np.float32)
@@ -110,16 +118,6 @@ class CartPoleSimulator:
         
         # 更新状态
         self.state = x_next.flatten().astype(np.float32)
-
-    # 获取传递函数
-    def get_transition_function(self):
-        """返回状态空间模型的传递函数"""
-        import control as ctrl
-        # 创建离散时间状态空间系统
-        sys_d = ctrl.ss(self.A_d, self.B_d, np.eye(4), np.zeros((4, 1)))
-        # 转换为传递函数
-        tf_d = ctrl.tf(sys_d)
-        return tf_d
 
 # ---------- CartPole 渲染器类 ----------
 class CartPoleRenderer:
@@ -289,7 +287,7 @@ if __name__ == '__main__':
 
     sys_d = env.simulator.get_transition_function()
     print(sys_d)
-    
+
     env.reset()
     for _ in range(1000):
         env.render()
