@@ -3,9 +3,6 @@
 
 import gymnasium as gym
 import numpy as np
- 
-def sigmoid(x):
-    return 1.0 / (1.0 + np.exp(-x))
 
 class PIDController:
     '''向量化的PID控制器
@@ -48,11 +45,12 @@ for i_episode in range(N_episodes):
         # print(f"step: {t}")
         env.render()
         error = state - desired_state
+        # pid = pid_controller.loop(error)[2] # 只使用theta的PID输出
         pid = np.dot(pid_controller.loop(error), desired_mask) # 最后只使用theta的PID输出
-        action = sigmoid(pid)
-        action = np.round(action).astype(np.int32)
-        # print(P * error + I * integral + D * derivative, pid, action)
-        # print(state, action, )
+        # def sigmoid(x): return 1.0 / (1.0 + np.exp(-x))
+        # action = np.round(sigmoid(pid)).astype(np.int32)
+        action = 1 if pid > 0 else 0 # 继电器特性输出
+        print(state, action, pid)
  
         state, reward, done, info, _ = env.step(action)
         if done or t==N_steps-1:
