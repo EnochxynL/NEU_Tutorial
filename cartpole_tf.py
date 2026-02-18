@@ -4,6 +4,7 @@ import matplotlib.patches as patches
 import math
 from types import ModuleType
 import sys
+import control as ctrl
 
 # ---------- 自定义空间类，模拟 gym.spaces ----------
 class Discrete:
@@ -32,9 +33,11 @@ class Box:
     def contains(self, x):
         return np.all(x >= self.low) and np.all(x <= self.high)
 
+
 class CartPoleSimulator:
     """
     CartPole 模拟器类，负责环境状态更新
+    使用 Python Control Systems Library 实现
     """
 
     def __init__(self):
@@ -50,6 +53,49 @@ class CartPoleSimulator:
 
         # 状态初始化
         self.state = None
+        
+        # 初始化状态空间模型
+        self._init_state_space_model()
+
+    def _init_state_space_model(self):
+        """初始化状态空间模型"""
+        # 物理参数
+        g = self.gravity
+        M = self.mass_cart
+        m = self.mass_pole
+        l = self.half_length
+        M_total = M + m
+        
+        # 状态空间矩阵
+        A = np.array([
+            [0, 1, 0, 0],
+            [0, 0, (m*g*l)/M_total, 0],
+            [0, 0, 0, 1],
+            [0, 0, (g*M)/(l*M_total), 0]
+        ])
+        
+        B = np.array([
+            [0],
+            [1/M_total],
+            [0],
+            [-1/(l*M_total)]
+        ])
+        
+        C = np.array([
+            [1, 0, 0, 0],  # 输出 x
+            [0, 0, 1, 0]   # 输出 theta
+        ])
+        
+        D = np.array([
+            [0],
+            [0]
+        ])
+        
+        # 创建状态空间模型
+        self.ss_model = ctrl.StateSpace(A, B, C, D)
+        
+        # 转换为离散时间模型
+        self.dt_ss_model = ctrl.c2d(self.ss_model, self.tau)
 
     def setup(self):
         """重置环境，返回初始观测"""
@@ -57,25 +103,19 @@ class CartPoleSimulator:
 
     def loop(self, action):
         """执行动作，返回 (next_obs, reward, done, info)"""
-        x, x_dot, theta, theta_dot = self.state
+        # 计算控制力
         force = self.force_mag if action == 1 else -self.force_mag
-
-        costheta = math.cos(theta)
-        sintheta = math.sin(theta)
-
-        # 计算加速度 (源自经典 cart-pole 方程)
-        temp = (force + self.pole_mass_length * theta_dot * theta_dot * sintheta) / self.total_mass
-        thetaacc = (self.gravity * sintheta - costheta * temp) / \
-                   (self.half_length * (4.0/3.0 - self.mass_pole * costheta * costheta / self.total_mass))
-        xacc = temp - self.pole_mass_length * thetaacc * costheta / self.total_mass
-
-        # 半隐式欧拉更新状态
-        x = x + x_dot * self.tau + 0.5 * self.tau**2 * xacc
-        x_dot = x_dot + xacc * self.tau
-        theta = theta + theta_dot * self.tau + 0.5 * self.tau**2 * thetaacc
-        theta_dot = theta_dot + thetaacc * self.tau
-
-        self.state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
+        
+        # 直接使用离散时间状态空间模型的状态转移方程
+        # x(k+1) = A*x(k) + B*u(k)
+        x_vec = self.state.reshape(-1, 1)
+        u_vec = np.array([force]).reshape(-1, 1)
+        
+        # 计算下一个状态
+        x_next = self.dt_ss_model.A @ x_vec + self.dt_ss_model.B @ u_vec
+        
+        # 更新状态
+        self.state = x_next.flatten().astype(np.float32)
 
 
 # ---------- CartPole 渲染器类 ----------
