@@ -19,9 +19,9 @@ class PIDController:
     # https://blog.csdn.net/qq_42249050/article/details/117749030
 
     def __init__(self, P=None, I=None, D=None):
-        self.P = P if P is not None else [1/150, 1/950, 0.1]
-        self.I = I if I is not None else [0.0005, 0.001, 0.01]
-        self.D = D if D is not None else [0.2, 0.0001, 0.5]
+        self.P = P if P is not None else -10 # 失败。上升和维持，应该采取不同的控制策略（滑膜控制？自适应控制器？）
+        self.I = I if I is not None else 0.0
+        self.D = D if D is not None else 0.0
         self.integral = 0
         self.derivative = 0
         self.prev_error = 0
@@ -40,8 +40,8 @@ class PIDController:
 def main(env=gym.make("Pendulum-v1", render_mode="human"), N_episodes=10, N_steps=50000):
     pid_controller = PIDController()
 
-    desired_state = np.array([0, 0, 0])
-    desired_mask = np.array([0, 0, 1])
+    desired_state = np.array([1, 0, 0])
+    desired_mask = np.array([0, 1, 0])
 
     for i_episode in range(N_episodes):
         state, _ = env.reset()
