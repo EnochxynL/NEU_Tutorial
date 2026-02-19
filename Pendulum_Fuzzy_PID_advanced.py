@@ -8,7 +8,7 @@ import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import matplotlib.pyplot as plt
-from pyconsys.PIDControl import PIDControl
+from Pendulum_PID import PIDControl
 
 class BodyPendulum(Framework):
     name = "Inverted Pendulum"
