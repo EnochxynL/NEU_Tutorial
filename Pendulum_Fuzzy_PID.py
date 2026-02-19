@@ -18,9 +18,6 @@ class BodyPendulum(Framework):
     def __init__(self):
         super(BodyPendulum, self).__init__()
 
-        self.createWorld()
-        self.createFuzzy()
-
     def createFuzzy(self):
         self.fuzz_pend1 = ctrl.Antecedent(np.arange(-1, 1.1, 0.1), 'join1')
         self.fuzz_motor = ctrl.Consequent(np.arange(-300, 300, 1), 'motor')
@@ -44,10 +41,12 @@ class BodyPendulum(Framework):
 
         #self.rule1.view()
 
+    def createPID(self):
+        self._pid_control = PIDControl(1, 0.05, 0.1)  # kp, ki, kd
+
     def createWorld(self):
         self._isLiving = True
         self._auto = True
-        self._pid_control = PIDControl(1, 0.05, 0.1)  # kp, ki, kd
 
         self.ground = self.world.CreateBody(
             shapes=b2EdgeShape(vertices=[(-25, 0), (25, 0)])
@@ -105,8 +104,6 @@ class BodyPendulum(Framework):
             enableMotor=True,
         )
 
-
-
     def destroyWorld(self):
         self.world.DestroyBody(self.carBody)
         self.world.DestroyBody(self.carLwheel)
@@ -114,22 +111,35 @@ class BodyPendulum(Framework):
         self.world.DestroyBody(self.pendulum)
         self._isLiving = False
 
+class PendulumFuzzyPID(BodyPendulum):
+    name = "Inverted Pendulum with Fuzzy PID"
+    description = "(n) new world"
+    
+    def __init__(self):
+        super(PendulumFuzzyPID, self).__init__()
+        self.createWorld()
+        self.createFuzzy()
+        self.createPID()
 
     def Keyboard(self, key):
         if key == Keys.K_a:
+            if self._isLiving:
+                self._auto = True
+
+        elif key == Keys.K_m:
+            self._auto = False
             if self._isLiving:
                 self.pendelumLJoin.motorSpeed = 0
                 self.pendelumLJoin.maxMotorTorque = 1000
                 self.pendelumRJoin.motorSpeed = 0
                 self.pendelumRJoin.maxMotorTorque = 1000
-                self._auto = True
                 self.fuzz_motor.view(sim=self.pendulum_fuzz)
-
+        
         elif key == Keys.K_n:
             if self._isLiving:
                 self.destroyWorld()
                 self.createWorld()
-
+                self.createPID()
 
     def Step(self, settings):
         super(BodyPendulum, self).Step(settings)
@@ -148,4 +158,4 @@ class BodyPendulum(Framework):
 
 
 if __name__ == "__main__":
-    main(BodyPendulum)
+    main(PendulumFuzzyPID)
