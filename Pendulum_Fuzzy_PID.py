@@ -9,7 +9,48 @@ import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import matplotlib.pyplot as plt
-from Pendulum_PID import PIDControl
+
+
+class PIDControl():
+    """ PID controller """
+    DELTA_T = 0.01
+    
+    def __init__(self, kp, ki, kd):
+        """ set Kp, Ki, Kd """
+        self._kp = kp
+        self._ki = ki
+        self._kd = kd
+        self._sum = 0
+        self._xe_old = 0
+
+    def update_params(self, kp, ki, kd):
+        """ update Kp, Ki, Kd """
+        self._kp = kp
+        self._ki = ki
+        self._kd = kd
+        self._sum = 0
+        self._xe_old = 0
+
+    def get_xa(self, xe):
+        """ give input, get output
+        Parameters:
+        xe(float): input error
+
+        Returns:
+        float: output xa """
+        # Proportional term
+        p_term = self._kp * xe
+        
+        # Integral term
+        self._sum += xe
+        i_term = self._ki * self._sum * self.DELTA_T
+        
+        # Derivative term
+        d_term = self._kd * ((xe - self._xe_old) / self.DELTA_T)
+        self._xe_old = xe
+        
+        # Total output
+        return p_term + i_term + d_term
 
 class BodyPendulum(Framework):
     name = "Inverted Pendulum"
@@ -41,8 +82,8 @@ class BodyPendulum(Framework):
 
         #self.rule1.view()
 
-    def createPID(self):
-        self._pid_control = PIDControl(1, 0.05, 0.1)  # kp, ki, kd
+    def createPID(self, kp, ki, kd):
+        self._pid_control = PIDControl(kp, ki, kd)  # kp, ki, kd
 
     def createWorld(self):
         self._isLiving = True
@@ -111,6 +152,46 @@ class BodyPendulum(Framework):
         self.world.DestroyBody(self.pendulum)
         self._isLiving = False
 
+class PendulumPID(BodyPendulum):
+    name = "Inverted Pendulum with PID"
+    description = "(n) new world"
+    
+    def __init__(self):
+        super(PendulumPID, self).__init__()
+        self.createWorld()
+        self.createPID(105, 83, 28)
+    
+    def Keyboard(self, key):
+        if key == Keys.K_a:
+            if self._isLiving:
+                self._auto = True
+
+        elif key == Keys.K_m:
+            self._auto = False
+            if self._isLiving:
+                self.pendelumLJoin.motorSpeed = 0
+                self.pendelumLJoin.maxMotorTorque = 1
+                self.pendelumRJoin.motorSpeed = 0
+                self.pendelumRJoin.maxMotorTorque = 1
+        elif key == Keys.K_n:
+            if self._isLiving:
+                self.destroyWorld()
+                self.createWorld()
+
+
+    def Step(self, settings):
+        super(BodyPendulum, self).Step(settings)
+
+        w = 0
+        e = (w - self.pendulum.angle*-1)
+        y = self._pid_control.get_xa(e)
+
+        if self._auto and self._isLiving:
+            self.pendelumLJoin.maxMotorTorque = 1000
+            self.pendelumRJoin.maxMotorTorque = 1000
+            self.pendelumLJoin.motorSpeed = y
+            self.pendelumRJoin.motorSpeed = y
+
 class PendulumFuzzyPID(BodyPendulum):
     name = "Inverted Pendulum with Fuzzy PID"
     description = "(n) new world"
@@ -119,7 +200,7 @@ class PendulumFuzzyPID(BodyPendulum):
         super(PendulumFuzzyPID, self).__init__()
         self.createWorld()
         self.createFuzzy()
-        self.createPID()
+        self.createPID(1, 0.05, 0.1)
 
     def Keyboard(self, key):
         if key == Keys.K_a:
@@ -139,7 +220,7 @@ class PendulumFuzzyPID(BodyPendulum):
             if self._isLiving:
                 self.destroyWorld()
                 self.createWorld()
-                self.createPID()
+                self.createPID(1, 0.05, 0.1)
 
     def Step(self, settings):
         super(BodyPendulum, self).Step(settings)
@@ -158,4 +239,4 @@ class PendulumFuzzyPID(BodyPendulum):
 
 
 if __name__ == "__main__":
-    main(PendulumFuzzyPID)
+    main(PendulumPID)
