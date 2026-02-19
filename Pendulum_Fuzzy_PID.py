@@ -8,6 +8,7 @@ import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import matplotlib.pyplot as plt
+from pyconsys.PIDControl import PIDControl
 
 class BodyPendulum(Framework):
     name = "Inverted Pendulum"
@@ -21,12 +22,12 @@ class BodyPendulum(Framework):
 
     def createFuzzy(self):
         self.fuzz_pend1 = ctrl.Antecedent(np.arange(-1, 1.1, 0.1), 'join1')
-        self.fuzz_motor = ctrl.Consequent(np.arange(-300, 300, 2), 'motor')
+        self.fuzz_motor = ctrl.Consequent(np.arange(-300, 300, 1), 'motor')
         self.fuzz_pend1.automf(7)
         self.fuzz_motor.automf(7)
 
-        self.fuzz_pend1['average'].view()
-        self.fuzz_motor['average'].view()
+        #self.fuzz_pend1['average'].view()
+        #self.fuzz_motor['average'].view()
 
 
         self.rule1 = ctrl.Rule(self.fuzz_pend1['dismal'], self.fuzz_motor['dismal'])
@@ -45,7 +46,7 @@ class BodyPendulum(Framework):
     def createWorld(self):
         self._isLiving = True
         self._auto = True
-
+        self._pid_control = PIDControl(1, 0.05, 0.1)  # kp, ki, kd
 
         self.ground = self.world.CreateBody(
             shapes=b2EdgeShape(vertices=[(-25, 0), (25, 0)])
@@ -121,7 +122,6 @@ class BodyPendulum(Framework):
                 self.pendelumRJoin.motorSpeed = 0
                 self.pendelumRJoin.maxMotorTorque = 1000
                 self._auto = True
-                self.fuzz_motor.view(sim=self.pendulum_fuzz)
 
         elif key == Keys.K_n:
             if self._isLiving:
@@ -136,8 +136,15 @@ class BodyPendulum(Framework):
         self.pendelumRJoin.maxMotorTorque = 1000
         self.pendulum_fuzz.input['join1'] = self.pendulum.angle
         self.pendulum_fuzz.compute()
-        self.pendelumLJoin.motorSpeed = self.pendulum_fuzz.output['motor']
-        self.pendelumRJoin.motorSpeed = self.pendulum_fuzz.output['motor']
+
+        if abs(self.pendulum.angle) > 0.01:
+            xa = self._pid_control.get_xa(self.pendulum_fuzz.output['motor'])
+        else:
+            xa = self.pendulum_fuzz.output['motor']
+        self.pendelumLJoin.motorSpeed = xa
+        self.pendelumRJoin.motorSpeed = xa
+
+        #self.fuzz_motor.view(sim=self.pendulum_fuzz)
 
 if __name__ == "__main__":
     main(BodyPendulum)

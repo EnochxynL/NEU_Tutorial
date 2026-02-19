@@ -5,114 +5,46 @@
 from Box2D.examples.framework import (Framework, Keys, main)
 from Box2D import (b2EdgeShape, b2FixtureDef, b2PolygonShape, b2CircleShape)
 
-class Control():
-    """ This should be an abstract class. Do not instantiate."""
-    DELTA_T = 0.01
-
-    def get_xa(self, xe):
-        raise NotImplementedError()
-
-class PControl(Control):
-    """ I control unit"""
-    def __init__(self, kp=1):
-        """set Kp
-        Parameters:
-        kp(float): Kp"""
-        self._kp = kp
-
-    def reset(self, kp):
-        """ resets the unit """
-        self._kp = kp
-
-    def get_xa(self, xe):
-        """ give input, get output
-        Parameters:
-        xe(float): input xe
-
-        Returns:
-        float: output xa """
-        return xe * self._kp
-
-class IControl(Control):
-    """ I control unit"""
-    def __init__(self, ki=1):
-        """ set Ki
-        Parameters:
-        ki(float): Ki """
-        self._ki = ki
-        self._sum = 0
-
-    def reset(self, ki):
-        """ resets the unit """
-        self._ki = ki
-        self._sum = 0
-
-    def get_xa(self, xe):
-        """ give input, get output
-        Parameters:
-        xe(float): input xe
-
-        Returns:
-        float: output xa """
-        self._sum = self._sum + xe
-        return self._ki * self._sum * self.DELTA_T
-
-class DControl(Control):
-    """ D control unit """
-    def __init__(self, kd=1):
-        """ set Kd
-        Parameters:
-        kd(float): Kd """
-        self._kd = kd
-        self._xe_old = 0
-
-    def reset(self, kd):
-        """ resets the unit """
-        self._kd = kd
-        self._xe_old = 0
-
-    def get_xa(self, xe):
-        """ give input, get output
-        Parameters:
-        xe(float): input xe
-
-        Returns:
-        float: output xa """
-        xa = self._kd * ((xe - self._xe_old) / self.DELTA_T)
-        self._xe_old = xe
-        return xa
-
 class PIDControl():
     """ PID controller """
+    DELTA_T = 0.01
+    
     def __init__(self, kp, ki, kd):
-        """ set Kp, Ki, Kd
-        Parameters:
-        kp(float): Kp
-        ki(float): Ki
-        kd(float): Kd """
-        self._pControl = PControl(kp)
-        self._iControl = IControl(ki)
-        self._dControl = DControl(kd)
+        """ set Kp, Ki, Kd """
+        self._kp = kp
+        self._ki = ki
+        self._kd = kd
+        self._sum = 0
+        self._xe_old = 0
 
     def update_params(self, kp, ki, kd):
-        """ update Kp, Ki, Kd
-        Parameters:
-        kp(float): Kp
-        ki(float): Ki
-        kd(float): Kd """
-        self._pControl.reset(kp)
-        self._iControl.reset(ki)
-        self._dControl.reset(kd)
+        """ update Kp, Ki, Kd """
+        self._kp = kp
+        self._ki = ki
+        self._kd = kd
+        self._sum = 0
+        self._xe_old = 0
 
     def get_xa(self, xe):
         """ give input, get output
         Parameters:
-        xe(float): input xe
+        xe(float): input error
 
         Returns:
         float: output xa """
-        xa = self._pControl.get_xa(xe) + self._iControl.get_xa(xe) + self._dControl.get_xa(xe)
-        return xa
+        # Proportional term
+        p_term = self._kp * xe
+        
+        # Integral term
+        self._sum += xe
+        i_term = self._ki * self._sum * self.DELTA_T
+        
+        # Derivative term
+        d_term = self._kd * ((xe - self._xe_old) / self.DELTA_T)
+        self._xe_old = xe
+        
+        # Total output
+        return p_term + i_term + d_term
 
 
 class BodyPendulum(Framework):
