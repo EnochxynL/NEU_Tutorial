@@ -1,3 +1,4 @@
+# https://github.com/mck-sbs/Pendulum/
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -26,8 +27,8 @@ class BodyPendulum(Framework):
         self.fuzz_pend1.automf(7)
         self.fuzz_motor.automf(7)
 
-        #self.fuzz_pend1['average'].view()
-        #self.fuzz_motor['average'].view()
+        self.fuzz_pend1['average'].view()
+        self.fuzz_motor['average'].view()
 
 
         self.rule1 = ctrl.Rule(self.fuzz_pend1['dismal'], self.fuzz_motor['dismal'])
@@ -122,6 +123,7 @@ class BodyPendulum(Framework):
                 self.pendelumRJoin.motorSpeed = 0
                 self.pendelumRJoin.maxMotorTorque = 1000
                 self._auto = True
+                self.fuzz_motor.view(sim=self.pendulum_fuzz)
 
         elif key == Keys.K_n:
             if self._isLiving:
@@ -144,7 +146,6 @@ class BodyPendulum(Framework):
         self.pendelumLJoin.motorSpeed = xa
         self.pendelumRJoin.motorSpeed = xa
 
-        #self.fuzz_motor.view(sim=self.pendulum_fuzz)
 
 if __name__ == "__main__":
     main(BodyPendulum)
